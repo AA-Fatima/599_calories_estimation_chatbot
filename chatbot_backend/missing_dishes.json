@@ -1,0 +1,50 @@
+[
+  {
+    "query": "apple",
+    "country": "lebanon",
+    "timestamp": "2025-12-28T00:39:00.421852",
+    "fallback_response": null,
+    "user_provided_ingredients": null,
+    "resolved": false
+  },
+  {
+    "query": "\u062a\u0641\u0627\u062d",
+    "country": "lebanon",
+    "timestamp": "2025-12-28T00:42:01.056268",
+    "fallback_response": null,
+    "user_provided_ingredients": null,
+    "resolved": false
+  },
+  {
+    "query": "\u0634\u062d\u062d\u0645\u062b",
+    "country": "lebanon",
+    "timestamp": "2025-12-28T00:42:05.250624",
+    "fallback_response": null,
+    "user_provided_ingredients": null,
+    "resolved": false
+  },
+  {
+    "query": "\u062a\u0641\u0627\u062d\u0629",
+    "country": "lebanon",
+    "timestamp": "2025-12-28T00:42:38.104211",
+    "fallback_response": null,
+    "user_provided_ingredients": null,
+    "resolved": false
+  },
+  {
+    "query": "\u0641\u0627\u0647\u064a\u062a\u0627",
+    "country": "lebanon",
+    "timestamp": "2025-12-28T00:43:05.341876",
+    "fallback_response": null,
+    "user_provided_ingredients": null,
+    "resolved": false
+  },
+  {
+    "query": "wajbet xxx",
+    "country": "lebanon",
+    "timestamp": "2025-12-28T10:54:50.649310",
+    "fallback_response": null,
+    "user_provided_ingredients": null,
+    "resolved": false
+  }
+]

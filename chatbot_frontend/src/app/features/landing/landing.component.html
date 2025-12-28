@@ -1,0 +1,58 @@
+
+<div class="landing">  <div class="logo"><!--🍎-->
+      <img alt="logo" src="../../../assets/logo.svg"/>
+    </div>
+  <div class="hero">
+    <div class="background">
+    <div class="msg1">How many calories in fajita with 200g chicken and no fries?</div>
+    <div class="msg2">560 kcal</div>
+  </div>
+  
+
+    
+    
+    <div class="hero-content w-75">
+      <!--
+      <h1>🍽️ Arabic Food Calorie Calculator</h1>-->
+      <h1>Smart Calorie Estimation</h1>
+      <p class="subtitle">
+        Discover the calories in your favorite Arabic dishes with our intelligent chatbot
+      </p>
+      <button class="btn btn-primary btn-large" (click)="getStarted()">
+        Get Started
+        <span class="arrow">→</span>
+      </button>
+    </div>
+    
+    <div class="hero-image">
+     <!-- <div class="food-icons">
+        <span class="food-icon">🥙</span>
+        <span class="food-icon">🧆</span>
+        <span class="food-icon">🍚</span>
+        <span class="food-icon">🥗</span>
+        <span class="food-icon">🍖</span>
+      </div>-->
+    </div>
+  </div>
+
+  <div class="features">
+    <h2>Why Use Our Calculator?</h2>
+    <div class="features-grid">
+      <div class="feature-card" *ngFor="let feature of features">
+        <span class="feature-icon">{{ feature.icon }}</span>
+        <h3>{{ feature.title }}</h3>
+        <p>{{ feature.description }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="examples">
+    <h2>Try Asking...</h2>
+    <div class="example-queries">
+      <div class="example">"How many calories in shawarma?"</div>
+      <div class="example">"Kushari without rice"</div>
+      <div class="example">"كم سعرة في الفلافل؟"</div>
+      <div class="example">"7ommos calories"</div>
+    </div>
+  </div>
+</div>

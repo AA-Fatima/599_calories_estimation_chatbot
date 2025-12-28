@@ -1,0 +1,38 @@
+<div class="country-select">
+  <div class="container"><!--
+    <button class="back-btn" (click)="goBack()">← Back</button>-->    
+    <div class="header">
+      <h1>
+        Select Your Country</h1>
+      <p>Choose your country to get accurate calorie information for local dishes</p>
+    </div>
+
+    <div class="countries-grid" *ngIf="! isLoading()">
+      <div 
+        class="country-card" 
+        *ngFor="let country of countries()"
+        [class.selected]="selectedCountry()?.code === country.code"
+        (click)="selectCountry(country)">
+        <span class="flag">{{ country.flag_emoji }}</span>
+        <div class="country-info">
+          <span class="name-en">{{ country.name_en }}</span>
+          <span class="name-ar">{{ country.name_ar }}</span>
+        </div>
+        <div class="check-mark" *ngIf="selectedCountry()?.code === country.code">✓</div>
+      </div>
+    </div>
+
+    <div class="loading" *ngIf="isLoading()">
+      <div class="spinner"></div>
+      <p>Loading countries... </p>
+    </div>
+
+    <button 
+      class="btn btn-primary start-btn" 
+      [disabled]="! selectedCountry()"
+      (click)="startChat()">
+      Start Calorie Calculator
+      <span class="arrow">→</span>
+    </button>
+  </div>
+</div>

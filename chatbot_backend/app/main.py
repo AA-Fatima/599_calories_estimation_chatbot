@@ -75,7 +75,10 @@ app = FastAPI(
 # CORS middleware for Angular frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # We'll restrict this later
+    allow_origins=[
+        "http://localhost:4200",
+        "https://*.vercel.app",  # Allow all Vercel domains
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -13,6 +13,7 @@ from app.services.fallback_service import FallbackService
 from app.services.missing_dish_logger import MissingDishLogger
 from app.config import settings
 
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -74,11 +75,7 @@ app = FastAPI(
 # CORS middleware for Angular frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:4200",
-        "https://*.vercel.app",  # Allow all Vercel subdomains
-        "https://*.netlify.app",
-    ],
+    allow_origins=["*"],  # We'll restrict this later
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,7 +1,6 @@
 from typing import List, Dict, Any, Tuple
 from rapidfuzz import fuzz, process
 import logging
-import numpy as np
 
 logger = logging.getLogger(__name__)
 

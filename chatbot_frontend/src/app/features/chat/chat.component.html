@@ -34,22 +34,33 @@
         <!-- Calorie Result Card -->
         <div class="calorie-card" *ngIf="msg.calorieResult">
           <div class="calorie-header">
-            <h3>{{ msg.calorieResult.food_name }}</h3>
-            <span class="source-badge" [class.approximate]="msg.calorieResult.is_approximate">
+            <h3>{{ msg.calorieResult.food_name }} ({{ msg.calorieResult.weight_g | number:'1.0-0' }}g)</h3>
+            <div class="calorie-stats">
+            <div class="stat main">
+              <span class="value">{{ msg.calorieResult.total_calories | number:'1.0-0' }} kcal</span>
+              <span class="label"></span>
+            </div></div>
+            <!--<span class="source-badge" [class.approximate]="msg.calorieResult.is_approximate">
               {{ msg.calorieResult.is_approximate ? '≈ Estimate' : '✓ Verified' }}
-            </span>
+            </span>-->
+          </div>
+          <!-- Modifications -->
+          <div class="modifications" *ngIf="msg.calorieResult.modifications && msg.calorieResult.modifications.length > 0">
+            <div class="mod-list">
+              <span class="mod" *ngFor="let mod of msg.calorieResult.modifications">{{ mod }}</span>
+            </div>
           </div>
           
           <div class="calorie-stats">
-            <div class="stat main">
+             <!--             <div class="stat main">
               <span class="value">{{ msg.calorieResult.total_calories | number:'1.0-0' }}</span>
               <span class="label">kcal</span>
             </div>
-            <div class="stat">
+               <div class="stat">
               <span class="value">{{ msg.calorieResult.weight_g | number:'1.0-0' }}g</span>
               <span class="label">Weight</span>
             </div>
-           <!--            <div class="stat">
+                  <div class="stat">
               <span class="value">{{ (msg.calorieResult.confidence * 100) | number:'1.0-0' }}%</span>
               <span class="label">Confidence</span>
             </div>-->
@@ -66,13 +77,6 @@
             </div>
           </div>
           
-          <!-- Modifications -->
-          <div class="modifications" *ngIf="msg.calorieResult.modifications && msg.calorieResult.modifications.length > 0">
-            <h4>✏️ Modifications</h4>
-            <div class="mod-list">
-              <span class="mod" *ngFor="let mod of msg.calorieResult.modifications">{{ mod }}</span>
-            </div>
-          </div>
         </div>
         
         <span class="message-time">{{ msg.timestamp | date:'shortTime' }}</span>

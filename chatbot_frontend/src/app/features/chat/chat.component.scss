@@ -182,8 +182,7 @@
 .calorie-card {
   background:  white;
   border-radius: 16px;
-  padding: 20px;
-  margin-top: 12px;
+  padding: 12px 20px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   border: 1px solid #e2e8f0;
 
@@ -217,11 +216,11 @@
   .calorie-stats {
     display: flex;
     gap: 20px;
-    margin-bottom: 20px;
+    /*margin-bottom: 20px;*/
 
     .stat {
       text-align: center;
-      padding: 12px 20px;
+      padding: 8px 12px;
       background: #f8fafc;
       border-radius: 12px;
       flex: 1;
@@ -237,7 +236,7 @@
 
       .value {
         display: block;
-        font-size: 1.5rem;
+        font-size: 14px;
         font-weight: 700;
       }
 
@@ -270,6 +269,7 @@
     background: #f8fafc;
     border-radius: 8px;
     font-size: 0.9rem;
+    gap: 1rem;
 
     .ing-name {
       color: var(--text-dark);
@@ -282,8 +282,7 @@
     }
   }
 
-  .modifications {
-    margin-top: 16px;
+  .modifications { 
 
     .mod-list {
       display: flex;

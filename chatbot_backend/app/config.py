@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
+import os
 
 
 class Settings(BaseSettings):
@@ -19,9 +20,20 @@ class Settings(BaseSettings):
     # NLP settings
     SIMILARITY_THRESHOLD: float = 0.7
     
+    # Server settings
+    PORT: int = 8000
+    HOST: str = "0.0.0.0"
+    RELOAD: bool = False
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "allow"  # Allow extra fields
 
 
 settings = Settings()
+
+# Validate critical settings
+if not settings.OPENAI_API_KEY:
+    import warnings
+    warnings.warn("⚠️  OPENAI_API_KEY not set!  Fallback responses will not work.")

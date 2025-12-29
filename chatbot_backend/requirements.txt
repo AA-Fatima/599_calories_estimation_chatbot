@@ -12,15 +12,17 @@ sentence-transformers==3.3.1
 langdetect==1.0.9
 rapidfuzz==3.6.1 
 
+# Machine Learning
+transformers>=4.35.0
+torch>=2.0.0
+accelerate>=0.24.0
+
 # OpenAI
 openai==1.57.0
 
 # Data Processing
 pandas==2.2.3
 openpyxl==3.1.5
-
-# HTTP Requests (for DeepSeek API)
-httpx==0.28.1
 
 # CORS
 python-multipart==0.0.18

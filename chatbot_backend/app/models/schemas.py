@@ -43,7 +43,7 @@ class CalorieResult(BaseModel):
     weight_g: float
     ingredients: Optional[List[Ingredient]] = None
     modifications: Optional[List[str]] = None
-    source: str  # "dishes", "usda", "gpt_fallback", "deepseek_fallback"
+    source: str  # "dishes", "usda", "gpt_fallback"
     confidence: float
     is_approximate: bool = False
     country: Optional[str] = None
@@ -93,7 +93,5 @@ class EvaluationResult(BaseModel):
     expected_calories: float
     our_calories: Optional[float] = None
     gpt_calories: Optional[float] = None
-    deepseek_calories:  Optional[float] = None
     our_error_percent: Optional[float] = None
     gpt_error_percent: Optional[float] = None
-    deepseek_error_percent: Optional[float] = None

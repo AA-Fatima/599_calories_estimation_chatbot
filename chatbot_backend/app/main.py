@@ -43,6 +43,11 @@ async def lifespan(app: FastAPI):
     # Initialize services
     logger.info("⚙️ Initializing services...")
     food_search = FoodSearchService(usda_foundation, usda_sr_legacy, dishes, nlp_engine)
+    
+    # Pre-compute embeddings for semantic search
+    logger.info("🔄 Pre-computing semantic embeddings...")
+    food_search.precompute_embeddings()
+    
     fallback_service = FallbackService()
     missing_logger = MissingDishLogger()
     calorie_calculator = CalorieCalculatorService(food_search, fallback_service, missing_logger)

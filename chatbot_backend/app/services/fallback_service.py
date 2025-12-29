@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class FallbackService: 
     """
-    Fallback to ChatGPT when food not found in database
+    Fallback to OpenAI ChatGPT when food not found in database
     """
     
     SYSTEM_PROMPT = """You are a nutrition expert specializing in Arabic and Middle Eastern cuisine. 

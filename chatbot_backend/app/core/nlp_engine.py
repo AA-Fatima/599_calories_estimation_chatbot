@@ -3,20 +3,27 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 from app.models.schemas import Intent, ParsedQuery
 from langdetect import detect, LangDetectException
+from app.config import settings
+import time
 
 logger = logging.getLogger(__name__)
 
 
 class NLPEngine:
-    """Advanced NLP engine - translates ONLY Arabic script, not Latin text! """
+    """Advanced NLP engine with ML-based intent classification and NER"""
     
     def __init__(self):
         self.translator = None
         self.semantic_model = None
+        self.intent_classifier = None
+        self.ner_model = None
+        self.ner_tokenizer = None
         self.initialized = False
         
         self._init_translator()
         self._init_semantic_model()
+        self._init_intent_classifier()
+        self._init_ner_model()
     
     def _init_translator(self):
         """Initialize Google Translator for Arabic ONLY"""
@@ -33,11 +40,52 @@ class NLPEngine:
         """Initialize semantic similarity model"""
         try: 
             from sentence_transformers import SentenceTransformer
+            start_time = time.time()
             self.semantic_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-            logger.info("✅ Semantic model initialized")
+            load_time = time.time() - start_time
+            logger.info(f"✅ Semantic model initialized in {load_time:.2f}s")
         except Exception as e: 
             logger.warning(f"Semantic model not available: {e}")
             self.semantic_model = None
+    
+    def _init_intent_classifier(self):
+        """Initialize zero-shot intent classifier"""
+        if not settings.USE_ML_INTENT_CLASSIFICATION:
+            logger.info("⚠️ ML intent classification disabled in config")
+            return
+            
+        try:
+            from transformers import pipeline
+            start_time = time.time()
+            self.intent_classifier = pipeline(
+                "zero-shot-classification",
+                model="facebook/bart-large-mnli",
+                device=-1  # CPU
+            )
+            load_time = time.time() - start_time
+            logger.info(f"✅ Intent classifier initialized in {load_time:.2f}s")
+        except Exception as e:
+            logger.warning(f"Intent classifier not available: {e}")
+            self.intent_classifier = None
+    
+    def _init_ner_model(self):
+        """Initialize Named Entity Recognition model"""
+        if not settings.USE_NER_EXTRACTION:
+            logger.info("⚠️ NER extraction disabled in config")
+            return
+            
+        try:
+            from transformers import AutoTokenizer, AutoModelForTokenClassification
+            start_time = time.time()
+            model_name = "Davlan/bert-base-multilingual-cased-ner-hrl"
+            self.ner_tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.ner_model = AutoModelForTokenClassification.from_pretrained(model_name)
+            load_time = time.time() - start_time
+            logger.info(f"✅ NER model initialized in {load_time:.2f}s")
+        except Exception as e:
+            logger.warning(f"NER model not available: {e}")
+            self.ner_model = None
+            self.ner_tokenizer = None
     
     async def initialize(self):
         """Initialize NLP engine"""
@@ -131,7 +179,56 @@ class NLPEngine:
         return result.strip()
     
     def _classify_intent(self, text: str, context:  Optional[Dict] = None) -> Intent:
-        """Classify intent"""
+        """Classify intent using ML (if available) or rule-based fallback"""
+        
+        # Try ML-based classification first
+        if self.intent_classifier and settings.USE_ML_INTENT_CLASSIFICATION:
+            try:
+                ml_intent, confidence = self._classify_intent_ml(text)
+                
+                # Log ML prediction
+                logger.info(f"ML intent: {ml_intent} (confidence: {confidence:.2f})")
+                
+                # Use ML prediction if confidence is high enough
+                if confidence >= settings.ML_CONFIDENCE_THRESHOLD:
+                    logger.info(f"✅ Using ML intent classification: {ml_intent}")
+                    return ml_intent
+                else:
+                    logger.info(f"⚠️ ML confidence too low ({confidence:.2f}), falling back to rules")
+            except Exception as e:
+                logger.warning(f"ML intent classification failed: {e}, falling back to rules")
+        
+        # Fallback to rule-based classification
+        return self._classify_intent_rules(text, context)
+    
+    def _classify_intent_ml(self, text: str) -> Tuple[Intent, float]:
+        """Classify intent using zero-shot classification"""
+        candidate_labels = [
+            "greeting or hello",
+            "request for help or instructions",
+            "query about food calories or nutrition",
+            "remove or exclude ingredient",
+            "add or include extra ingredient",
+        ]
+        
+        result = self.intent_classifier(text, candidate_labels)
+        top_label = result['labels'][0]
+        confidence = result['scores'][0]
+        
+        # Map labels to Intent enum
+        label_to_intent = {
+            "greeting or hello": Intent.GREETING,
+            "request for help or instructions": Intent.HELP,
+            "query about food calories or nutrition": Intent.QUERY_FOOD,
+            "remove or exclude ingredient": Intent.MODIFY_REMOVE,
+            "add or include extra ingredient": Intent.MODIFY_ADD,
+        }
+        
+        intent = label_to_intent.get(top_label, Intent.QUERY_FOOD)
+        return intent, confidence
+    
+    def _classify_intent_rules(self, text: str, context: Optional[Dict] = None) -> Intent:
+        """Rule-based intent classification (fallback)"""
         text_lower = text.lower()
         
         # Greeting patterns
@@ -156,7 +253,75 @@ class NLPEngine:
         return Intent.QUERY_FOOD
     
     def _extract_food_items(self, text: str) -> List[str]:
-        """Extract food items from text"""
+        """Extract food items using NER (if available) or rule-based fallback"""
+        
+        # Try NER-based extraction first
+        if self.ner_model and self.ner_tokenizer and settings.USE_NER_EXTRACTION:
+            try:
+                ner_items = self._extract_food_items_ner(text)
+                
+                if ner_items:
+                    logger.info(f"✅ NER extracted food items: {ner_items}")
+                    # Combine NER results with rule-based for better coverage
+                    rule_items = self._extract_food_items_rules(text)
+                    combined = list(set(ner_items + rule_items))
+                    return combined if combined else ner_items
+            except Exception as e:
+                logger.warning(f"NER extraction failed: {e}, falling back to rules")
+        
+        # Fallback to rule-based extraction
+        return self._extract_food_items_rules(text)
+    
+    def _extract_food_items_ner(self, text: str) -> List[str]:
+        """Extract food items using NER model"""
+        try:
+            import torch
+        except ImportError:
+            logger.warning("PyTorch not available for NER")
+            return []
+        
+        # Tokenize and get predictions
+        inputs = self.ner_tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+        outputs = self.ner_model(**inputs)
+        predictions = torch.argmax(outputs.logits, dim=2)
+        
+        # Get labels
+        tokens = self.ner_tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
+        labels = [self.ner_model.config.id2label[pred.item()] for pred in predictions[0]]
+        
+        # Extract entities (look for MISC, ORG, or other relevant tags that might contain food)
+        entities = []
+        current_entity = []
+        
+        for token, label in zip(tokens, labels):
+            if token in ['[CLS]', '[SEP]', '[PAD]']:
+                continue
+                
+            if label.startswith('B-'):  # Beginning of entity
+                if current_entity:
+                    entities.append(' '.join(current_entity))
+                current_entity = [token.replace('##', '')]
+            elif label.startswith('I-') and current_entity:  # Inside entity
+                current_entity.append(token.replace('##', ''))
+            else:  # Outside entity
+                if current_entity:
+                    entities.append(' '.join(current_entity))
+                    current_entity = []
+        
+        if current_entity:
+            entities.append(' '.join(current_entity))
+        
+        # Clean up entities
+        cleaned = []
+        for entity in entities:
+            cleaned_entity = self._clean_food_name(entity)
+            if cleaned_entity and len(cleaned_entity) > 2:  # Ignore very short entities
+                cleaned.append(cleaned_entity)
+        
+        return cleaned if cleaned else []
+    
+    def _extract_food_items_rules(self, text: str) -> List[str]:
+        """Rule-based food item extraction (fallback)"""
         text_lower = text.lower().strip()
         
         # Handle modification patterns first

@@ -4,6 +4,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Constants
+USDA_LARGE_DATABASE_THRESHOLD = 5000  # Threshold for using batch encoding
+
+# Try to import sentence_transformers util at module level
+try:
+    from sentence_transformers import util as st_util
+    ST_UTIL_AVAILABLE = True
+except ImportError:
+    ST_UTIL_AVAILABLE = False
+    st_util = None
+
 
 class FoodSearchService:
     """Food search using semantic embeddings + fuzzy matching for intelligent food discovery"""
@@ -124,7 +135,7 @@ class FoodSearchService:
             logger.info("Computing semantic embeddings for USDA foods...")
             if self.usda_names:
                 # USDA is large, so we might want to limit or batch this
-                if len(self.usda_names) > 5000:
+                if len(self.usda_names) > USDA_LARGE_DATABASE_THRESHOLD:
                     logger.info(f"USDA database is large ({len(self.usda_names)}), using batch encoding")
                 self.usda_embeddings = self.nlp_engine.semantic_model.encode(
                     self.usda_names,
@@ -251,14 +262,16 @@ class FoodSearchService:
         if not self.nlp_engine.semantic_model or self.dish_embeddings is None:
             return []
         
+        if not ST_UTIL_AVAILABLE:
+            logger.warning("sentence_transformers.util not available")
+            return []
+        
         try:
-            from sentence_transformers import util
-            
             # Encode query
             query_embedding = self.nlp_engine.semantic_model.encode(query, convert_to_tensor=True)
             
             # Compute cosine similarity
-            similarities = util.cos_sim(query_embedding, self.dish_embeddings)[0]
+            similarities = st_util.cos_sim(query_embedding, self.dish_embeddings)[0]
             
             # Get top results
             top_indices = similarities.argsort(descending=True)[:5]
@@ -292,14 +305,16 @@ class FoodSearchService:
         if not self.nlp_engine.semantic_model or self.usda_embeddings is None:
             return []
         
+        if not ST_UTIL_AVAILABLE:
+            logger.warning("sentence_transformers.util not available")
+            return []
+        
         try:
-            from sentence_transformers import util
-            
             # Encode query
             query_embedding = self.nlp_engine.semantic_model.encode(query, convert_to_tensor=True)
             
             # Compute cosine similarity
-            similarities = util.cos_sim(query_embedding, self.usda_embeddings)[0]
+            similarities = st_util.cos_sim(query_embedding, self.usda_embeddings)[0]
             
             # Get top results
             top_indices = similarities.argsort(descending=True)[:5]

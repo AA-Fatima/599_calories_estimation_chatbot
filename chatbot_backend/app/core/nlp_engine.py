@@ -274,7 +274,11 @@ class NLPEngine:
     
     def _extract_food_items_ner(self, text: str) -> List[str]:
         """Extract food items using NER model"""
-        import torch
+        try:
+            import torch
+        except ImportError:
+            logger.warning("PyTorch not available for NER")
+            return []
         
         # Tokenize and get predictions
         inputs = self.ner_tokenizer(text, return_tensors="pt", truncation=True, max_length=512)

@@ -8,10 +8,6 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = "gpt-4o-mini"  # or "gpt-4" for better results
     
-    # DeepSeek (optional)
-    DEEPSEEK_API_KEY: Optional[str] = None
-    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
-    
     # Data paths
     USDA_FOUNDATION_PATH: str = "app/data/raw/USDA_foundation.json"
     USDA_SR_LEGACY_PATH: str = "app/data/raw/USDA_sr_legacy.json"
@@ -19,6 +15,12 @@ class Settings(BaseSettings):
     
     # NLP settings
     SIMILARITY_THRESHOLD: float = 0.7
+    
+    # ML Configuration
+    USE_ML_INTENT_CLASSIFICATION: bool = True
+    USE_SEMANTIC_SEARCH: bool = True
+    USE_NER_EXTRACTION: bool = True
+    ML_CONFIDENCE_THRESHOLD: float = 0.5
     
     # Server settings
     PORT: int = 8000

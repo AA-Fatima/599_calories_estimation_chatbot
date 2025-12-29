@@ -40,10 +40,6 @@ class EvaluationResult:
     gpt_weight_g: Optional[float] = None
     gpt_response_time_ms:  Optional[float] = None
     
-    deepseek_calories: Optional[float] = None
-    deepseek_weight_g: Optional[float] = None
-    deepseek_response_time_ms: Optional[float] = None
-    
     @property
     def our_error_percent(self) -> Optional[float]:
         if self.our_calories is None: 
@@ -63,15 +59,6 @@ class EvaluationResult:
         return abs(self.gpt_calories - expected) / expected * 100
     
     @property
-    def deepseek_error_percent(self) -> Optional[float]:
-        if self.deepseek_calories is None: 
-            return None
-        expected = self.test_case.expected_calories
-        if expected == 0:
-            return 0 if self.deepseek_calories == 0 else 100
-        return abs(self.deepseek_calories - expected) / expected * 100
-    
-    @property
     def our_is_accurate(self) -> bool:
         if self.our_error_percent is None:
             return False
@@ -82,12 +69,6 @@ class EvaluationResult:
         if self.gpt_error_percent is None:
             return False
         return self.gpt_error_percent <= self.test_case.tolerance_percent
-    
-    @property
-    def deepseek_is_accurate(self) -> bool:
-        if self.deepseek_error_percent is None:
-            return False
-        return self.deepseek_error_percent <= self.test_case.tolerance_percent
     
     def to_dict(self) -> Dict:
         return {
@@ -110,11 +91,6 @@ class EvaluationResult:
             'gpt_error_percent': self.gpt_error_percent,
             'gpt_response_time_ms': self.gpt_response_time_ms,
             'gpt_is_accurate':  self.gpt_is_accurate,
-            
-            'deepseek_calories':  self.deepseek_calories,
-            'deepseek_error_percent': self.deepseek_error_percent,
-            'deepseek_response_time_ms': self.deepseek_response_time_ms,
-            'deepseek_is_accurate':  self.deepseek_is_accurate,
         }
 
 
@@ -188,8 +164,8 @@ class CalorieChatbotEvaluator:
             import time
             start = time.time()
             
-            gpt_result, _ = await self.fallback.get_fallback_calories(
-                case.query, case.country, provider="openai"
+            gpt_result, _ = await self.fallback.get_calories_from_gpt(
+                case.query, case.country
             )
             
             result.gpt_response_time_ms = (time.time() - start) * 1000
@@ -199,23 +175,6 @@ class CalorieChatbotEvaluator:
                 
         except Exception as e:
             logger.error(f"GPT failed for '{case.query}': {e}")
-        
-        # Evaluate DeepSeek
-        try: 
-            import time
-            start = time.time()
-            
-            ds_result, _ = await self.fallback.get_fallback_calories(
-                case.query, case.country, provider="deepseek"
-            )
-            
-            result.deepseek_response_time_ms = (time.time() - start) * 1000
-            if ds_result:
-                result.deepseek_calories = ds_result.get('total_calories')
-                result.deepseek_weight_g = ds_result.get('weight_g')
-                
-        except Exception as e:
-            logger.error(f"DeepSeek failed for '{case.query}': {e}")
         
         return result
     
@@ -255,7 +214,6 @@ class CalorieChatbotEvaluator:
             
             'our_system':  self._calculate_system_stats('our'),
             'gpt':  self._calculate_system_stats('gpt'),
-            'deepseek': self._calculate_system_stats('deepseek'),
             
             'by_category': self._calculate_category_stats(),
             'by_country': self._calculate_country_stats(),

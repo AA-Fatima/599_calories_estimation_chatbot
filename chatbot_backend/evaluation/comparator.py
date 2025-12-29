@@ -19,7 +19,7 @@ from app.config import settings
 
 
 class ChatbotComparator:
-    """Compare our chatbot with GPT and DeepSeek"""
+    """Compare our chatbot with GPT"""
     
     def __init__(self):
         self.nlp_engine = None
@@ -66,19 +66,10 @@ class ChatbotComparator:
     async def get_gpt_response(self, query: str, country: str) -> Optional[float]: 
         """Get calorie response from GPT"""
         try: 
-            result = await self.fallback_service.get_calories_from_gpt(query, country)
-            return result.get("calories") if result else None
+            result, success = await self.fallback_service.get_calories_from_gpt(query, country)
+            return result.get("total_calories") if result and success else None
         except Exception as e:
             print(f"  ⚠️ GPT error:  {e}")
-            return None
-    
-    async def get_deepseek_response(self, query:  str, country: str) -> Optional[float]:
-        """Get calorie response from DeepSeek"""
-        try:
-            result = await self.fallback_service.get_calories_from_deepseek(query, country)
-            return result.get("calories") if result else None
-        except Exception as e: 
-            print(f"  ⚠️ DeepSeek error: {e}")
             return None
     
     def calculate_error(self, predicted: Optional[float], actual:  float) -> Optional[float]:
@@ -91,7 +82,6 @@ class ChatbotComparator:
         self,
         test_file: str,
         include_gpt: bool = True,
-        include_deepseek: bool = True,
         output_file: str = "evaluation_results.xlsx"
     ) -> Dict:
         """Run full comparison"""
@@ -118,12 +108,10 @@ class ChatbotComparator:
             # Get responses
             our_cal = await self.get_our_response(query, country)
             gpt_cal = await self.get_gpt_response(query, country) if include_gpt else None
-            deepseek_cal = await self.get_deepseek_response(query, country) if include_deepseek else None
             
             # Calculate errors
             our_error = self.calculate_error(our_cal, expected)
             gpt_error = self.calculate_error(gpt_cal, expected)
-            deepseek_error = self.calculate_error(deepseek_cal, expected)
             
             result = {
                 'query': query,
@@ -131,16 +119,14 @@ class ChatbotComparator:
                 'expected_calories': expected,
                 'our_calories': our_cal,
                 'gpt_calories': gpt_cal,
-                'deepseek_calories': deepseek_cal,
                 'our_error_%': round(our_error, 2) if our_error else None,
                 'gpt_error_%': round(gpt_error, 2) if gpt_error else None,
-                'deepseek_error_%': round(deepseek_error, 2) if deepseek_error else None,
             }
             
             results.append(result)
             
             # Print progress
-            print(f"  Expected: {expected} | Ours: {our_cal} | GPT: {gpt_cal} | DeepSeek: {deepseek_cal}")
+            print(f"  Expected: {expected} | Ours: {our_cal} | GPT: {gpt_cal}")
         
         # Calculate summary statistics
         summary = self._calculate_summary(results)
@@ -154,7 +140,6 @@ class ChatbotComparator:
         """Calculate summary statistics"""
         our_errors = [r['our_error_%'] for r in results if r['our_error_%'] is not None]
         gpt_errors = [r['gpt_error_%'] for r in results if r['gpt_error_%'] is not None]
-        deepseek_errors = [r['deepseek_error_%'] for r in results if r['deepseek_error_%'] is not None]
         
         def calc_stats(errors):
             if not errors:
@@ -169,7 +154,6 @@ class ChatbotComparator:
             'total_cases': len(results),
             'our_chatbot':  calc_stats(our_errors),
             'gpt':  calc_stats(gpt_errors),
-            'deepseek': calc_stats(deepseek_errors),
             'timestamp': datetime.now().isoformat()
         }
     
@@ -193,12 +177,6 @@ class ChatbotComparator:
                 summary['gpt']['within_10%'] if summary['gpt']['within_10%'] else 'N/A',
                 summary['gpt']['within_20%'] if summary['gpt']['within_20%'] else 'N/A'
             ],
-            'DeepSeek': [
-                summary['total_cases'],
-                summary['deepseek']['avg'] if summary['deepseek']['avg'] else 'N/A',
-                summary['deepseek']['within_10%'] if summary['deepseek']['within_10%'] else 'N/A',
-                summary['deepseek']['within_20%'] if summary['deepseek']['within_20%'] else 'N/A'
-            ]
         }
         df_summary = pd.DataFrame(summary_data)
         
@@ -224,11 +202,5 @@ class ChatbotComparator:
             print(f"  Average Error: {summary['gpt']['avg']}%")
             print(f"  Accuracy (±10%): {summary['gpt']['within_10%']}%")
             print(f"  Accuracy (±20%): {summary['gpt']['within_20%']}%")
-        
-        if summary['deepseek']['avg']:
-            print("\n--- DeepSeek ---")
-            print(f"  Average Error:  {summary['deepseek']['avg']}%")
-            print(f"  Accuracy (±10%): {summary['deepseek']['within_10%']}%")
-            print(f"  Accuracy (±20%): {summary['deepseek']['within_20%']}%")
         
         print("="*60)

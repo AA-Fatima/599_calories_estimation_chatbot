@@ -1,0 +1,75 @@
+{
+  "fajita sandwich": [
+    "fajita",
+    "fahita",
+    "faheta",
+    "fajita sandwish",
+    "fahita sandwich",
+    "fajita sandwech"
+  ],
+  "shawarma": [
+    "shawerma",
+    "shawurma",
+    "shawarma sandwich",
+    "chicken shawarma",
+    "beef shawarma"
+  ],
+  "falafel": [
+    "felafel",
+    "falafel sandwich",
+    "falafel wrap"
+  ],
+  "hummus": [
+    "houmous",
+    "hommus",
+    "humus"
+  ],
+  "tabbouleh": [
+    "tabouli",
+    "tabouleh",
+    "tabbouli"
+  ],
+  "fattoush": [
+    "fatoush",
+    "fattouche"
+  ],
+  "kibbeh": [
+    "kibbe",
+    "kebbeh",
+    "kubba"
+  ],
+  "kabsa": [
+    "kabseh",
+    "kabsah",
+    "kabsa rice"
+  ],
+  "koshari": [
+    "kushari",
+    "koosharii",
+    "koshary",
+    "kushari plate"
+  ],
+  "mansaf": [
+    "mensaf",
+    "mansaf plate"
+  ],
+  "baklava": [
+    "baklawa",
+    "baklawah"
+  ],
+  "kunafa": [
+    "knafeh",
+    "kanafeh",
+    "kunafeh",
+    "knafe"
+  ],
+  "chicken": [
+    "chiken",
+    "chikn"
+  ],
+  "sandwich": [
+    "sandwish",
+    "sandwech",
+    "sandwitch"
+  ]
+}

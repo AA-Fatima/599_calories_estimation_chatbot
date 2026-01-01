@@ -1,5 +1,7 @@
 import re
 import logging
+import os
+import json
 from typing import List, Dict, Any, Optional, Tuple
 from app.models.schemas import Intent, ParsedQuery
 from langdetect import detect, LangDetectException
@@ -7,6 +9,31 @@ from app.config import settings
 import time
 
 logger = logging.getLogger(__name__)
+
+# NOISE WORDS to filter out during food extraction
+NOISE_WORDS = {
+    'kam', 'ade', 'adeh', 'shu', 'eh', 'fi', 'b', 'in', 'of', 'the',
+    'calories', 'calorie', 'kcal', 'cal', 'how', 'many', 'much', 'what',
+    'tell', 'me', 'about', 'is', 'are', 'have', 'has',
+    'كم', 'أدي', 'شو', 'ايه', 'سعرة', 'سعرات', 'في', 'ب'
+}
+
+# FOOD KEYWORDS that indicate food items
+FOOD_KEYWORDS = {
+    # Dishes
+    'sandwich', 'sandwish', 'sandwech', 'plate', 'platter', 'bowl',
+    'fajita', 'fahita', 'faheta', 'shawarma', 'shawurma', 'shawerma',
+    'falafel', 'felafel', 'hummus', 'houmous', 'tabbouleh', 'tabouli',
+    'fattoush', 'fatoush', 'kibbeh', 'kibbe', 'kabsa', 'kabseh',
+    'koshari', 'kushari', 'koosharii', 'mansaf', 'mensaf',
+    'baklava', 'baklawa', 'kunafa', 'knafeh', 'kanafeh',
+    # Types
+    'burger', 'wrap', 'roll', 'pizza', 'pasta', 'rice', 'bread',
+    # Proteins
+    'chicken', 'beef', 'lamb', 'meat', 'fish', 'shrimp',
+    # Arabic
+    'شاورما', 'فلافل', 'حمص', 'تبولة', 'فاهيتا', 'كبسة'
+}
 
 
 class NLPEngine:
@@ -42,9 +69,6 @@ class NLPEngine:
     def _load_food_aliases(self) -> dict:
         """Load food aliases for better extraction"""
         try:
-            import os
-            import json
-            
             aliases_path = os.path.join(
                 os.path.dirname(__file__), 
                 '..', 'data', 'food_aliases.json'
@@ -297,31 +321,6 @@ class NLPEngine:
     
     def _extract_food_items_ml(self, text: str) -> List[str]:
         """Smart food extraction: Aliases → Keywords → NER → Rules"""
-        
-        # NOISE WORDS to filter out
-        NOISE_WORDS = {
-            'kam', 'ade', 'adeh', 'shu', 'eh', 'fi', 'b', 'in', 'of', 'the',
-            'calories', 'calorie', 'kcal', 'cal', 'how', 'many', 'much', 'what',
-            'tell', 'me', 'about', 'is', 'are', 'have', 'has',
-            'كم', 'أدي', 'شو', 'ايه', 'سعرة', 'سعرات', 'في', 'ب'
-        }
-        
-        # FOOD KEYWORDS that indicate food items
-        FOOD_KEYWORDS = {
-            # Dishes
-            'sandwich', 'sandwish', 'sandwech', 'plate', 'platter', 'bowl',
-            'fajita', 'fahita', 'faheta', 'shawarma', 'shawurma', 'shawerma',
-            'falafel', 'felafel', 'hummus', 'houmous', 'tabbouleh', 'tabouli',
-            'fattoush', 'fatoush', 'kibbeh', 'kibbe', 'kabsa', 'kabseh',
-            'koshari', 'kushari', 'koosharii', 'mansaf', 'mensaf',
-            'baklava', 'baklawa', 'kunafa', 'knafeh', 'kanafeh',
-            # Types
-            'burger', 'wrap', 'roll', 'pizza', 'pasta', 'rice', 'bread',
-            # Proteins
-            'chicken', 'beef', 'lamb', 'meat', 'fish', 'shrimp',
-            # Arabic
-            'شاورما', 'فلافل', 'حمص', 'تبولة', 'فاهيتا', 'كبسة'
-        }
         
         text_lower = text.lower().strip()
         words = text_lower.split()

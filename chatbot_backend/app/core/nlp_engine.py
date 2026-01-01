@@ -329,13 +329,17 @@ class NLPEngine:
         if hasattr(self, 'food_aliases') and self.food_aliases:
             for canonical, aliases in self.food_aliases.items():
                 for alias in aliases:
-                    if alias.lower() in text_lower:
+                    # Use word boundary matching to avoid false positives
+                    alias_lower = alias.lower()
+                    # Check if alias appears as complete word(s)
+                    if f' {alias_lower} ' in f' {text_lower} ' or text_lower == alias_lower:
                         logger.info(f"Found via alias: '{alias}' → '{canonical}'")
                         return [canonical]
         
         # STRATEGY 2: Look for food keywords
         for keyword in FOOD_KEYWORDS:
-            if keyword in text_lower:
+            # Check for word boundary matches
+            if f' {keyword} ' in f' {text_lower} ' or text_lower == keyword or text_lower.startswith(f'{keyword} ') or text_lower.endswith(f' {keyword}'):
                 # Find the keyword position
                 keyword_idx = -1
                 for i, word in enumerate(words):
@@ -404,7 +408,7 @@ class NLPEngine:
         
         if len(clean_words) >= 2:
             # Take last 2-3 words
-            result = ' '.join(clean_words[-3:]) if len(clean_words) >= 3 else ' '.join(clean_words[-2:])
+            result = ' '.join(clean_words[-min(3, len(clean_words)):])
             logger.info(f"Found via rules: '{result}'")
             return [result]
         elif clean_words:

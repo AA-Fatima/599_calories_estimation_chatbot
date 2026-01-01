@@ -59,6 +59,8 @@ async def send_message(request: ChatRequest):
         logger.info(f"Parsing query: {request.message}")
         parsed_query = nlp_engine.parse_query(request.message, context)
         logger.info(f"Parsed query: intent={parsed_query.intent}, foods={parsed_query.food_items}")
+        logger.info(f"Original text: '{parsed_query.original_text}'")
+        logger.info(f"Normalized text: '{parsed_query.normalized_text}'")
         
         # Handle different intents
         if parsed_query.intent == Intent.GREETING:

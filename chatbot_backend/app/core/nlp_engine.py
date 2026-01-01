@@ -1,5 +1,7 @@
 import re
 import logging
+import os
+import json
 from typing import List, Dict, Any, Optional, Tuple
 from app.models.schemas import Intent, ParsedQuery
 from langdetect import detect, LangDetectException
@@ -7,6 +9,31 @@ from app.config import settings
 import time
 
 logger = logging.getLogger(__name__)
+
+# NOISE WORDS to filter out during food extraction
+NOISE_WORDS = {
+    'kam', 'ade', 'adeh', 'shu', 'eh', 'fi', 'b', 'in', 'of', 'the',
+    'calories', 'calorie', 'kcal', 'cal', 'how', 'many', 'much', 'what',
+    'tell', 'me', 'about', 'is', 'are', 'have', 'has',
+    'كم', 'أدي', 'شو', 'ايه', 'سعرة', 'سعرات', 'في', 'ب'
+}
+
+# FOOD KEYWORDS that indicate food items
+FOOD_KEYWORDS = {
+    # Dishes
+    'sandwich', 'sandwish', 'sandwech', 'plate', 'platter', 'bowl',
+    'fajita', 'fahita', 'faheta', 'shawarma', 'shawurma', 'shawerma',
+    'falafel', 'felafel', 'hummus', 'houmous', 'tabbouleh', 'tabouli',
+    'fattoush', 'fatoush', 'kibbeh', 'kibbe', 'kabsa', 'kabseh',
+    'koshari', 'kushari', 'koosharii', 'mansaf', 'mensaf',
+    'baklava', 'baklawa', 'kunafa', 'knafeh', 'kanafeh',
+    # Types
+    'burger', 'wrap', 'roll', 'pizza', 'pasta', 'rice', 'bread',
+    # Proteins
+    'chicken', 'beef', 'lamb', 'meat', 'fish', 'shrimp',
+    # Arabic
+    'شاورما', 'فلافل', 'حمص', 'تبولة', 'فاهيتا', 'كبسة'
+}
 
 
 class NLPEngine:
@@ -19,6 +46,9 @@ class NLPEngine:
         self.ner_model = None
         self.ner_tokenizer = None
         self.initialized = False
+        
+        # Load food aliases for better extraction
+        self.food_aliases = self._load_food_aliases()
         
         self._init_translator()
         self._init_semantic_model()
@@ -35,6 +65,26 @@ class NLPEngine:
         except Exception as e:
             logger.warning(f"Translator not available: {e}")
             self.translator = None
+    
+    def _load_food_aliases(self) -> dict:
+        """Load food aliases for better extraction"""
+        try:
+            aliases_path = os.path.join(
+                os.path.dirname(__file__), 
+                '..', 'data', 'food_aliases.json'
+            )
+            
+            if os.path.exists(aliases_path):
+                with open(aliases_path, 'r', encoding='utf-8') as f:
+                    aliases = json.load(f)
+                logger.info(f"✅ Loaded {len(aliases)} food aliases")
+                return aliases
+            else:
+                logger.warning("⚠️ food_aliases.json not found")
+                return {}
+        except Exception as e:
+            logger.error(f"Failed to load food aliases: {e}")
+            return {}
     
     def _init_semantic_model(self):
         """Initialize semantic similarity model"""
@@ -255,22 +305,119 @@ class NLPEngine:
     def _extract_food_items(self, text: str) -> List[str]:
         """Extract food items using NER (if available) or rule-based fallback"""
         
-        # Try NER-based extraction first
-        if self.ner_model and self.ner_tokenizer and settings.USE_NER_EXTRACTION:
+        # Try ML-based extraction first (new hybrid approach)
+        if settings.USE_NER_EXTRACTION:
             try:
-                ner_items = self._extract_food_items_ner(text)
+                ml_items = self._extract_food_items_ml(text)
                 
-                if ner_items:
-                    logger.info(f"✅ NER extracted food items: {ner_items}")
-                    # Combine NER results with rule-based for better coverage
-                    rule_items = self._extract_food_items_rules(text)
-                    combined = list(set(ner_items + rule_items))
-                    return combined if combined else ner_items
+                if ml_items:
+                    logger.info(f"✅ ML extracted food items: {ml_items}")
+                    return ml_items
             except Exception as e:
-                logger.warning(f"NER extraction failed: {e}, falling back to rules")
+                logger.warning(f"ML extraction failed: {e}, falling back to rules")
         
         # Fallback to rule-based extraction
         return self._extract_food_items_rules(text)
+    
+    def _extract_food_items_ml(self, text: str) -> List[str]:
+        """Smart food extraction: Aliases → Keywords → NER → Rules"""
+        
+        text_lower = text.lower().strip()
+        words = text_lower.split()
+        
+        # STRATEGY 1: Check food aliases FIRST (highest priority)
+        if hasattr(self, 'food_aliases') and self.food_aliases:
+            for canonical, aliases in self.food_aliases.items():
+                for alias in aliases:
+                    # Use word boundary matching to avoid false positives
+                    alias_lower = alias.lower()
+                    # Check if alias appears as complete word(s)
+                    if f' {alias_lower} ' in f' {text_lower} ' or text_lower == alias_lower:
+                        logger.info(f"Found via alias: '{alias}' → '{canonical}'")
+                        return [canonical]
+        
+        # STRATEGY 2: Look for food keywords
+        for keyword in FOOD_KEYWORDS:
+            # Check for word boundary matches
+            if f' {keyword} ' in f' {text_lower} ' or text_lower == keyword or text_lower.startswith(f'{keyword} ') or text_lower.endswith(f' {keyword}'):
+                # Find the keyword position
+                keyword_idx = -1
+                for i, word in enumerate(words):
+                    if keyword in word.lower():
+                        keyword_idx = i
+                        break
+                
+                if keyword_idx != -1:
+                    # Extract context: 1 word before + keyword + 1 word after
+                    start = max(0, keyword_idx - 1)
+                    end = min(len(words), keyword_idx + 2)
+                    food_phrase = words[start:end]
+                    
+                    # Remove noise words
+                    clean_phrase = [w for w in food_phrase if w.lower() not in NOISE_WORDS]
+                    
+                    if clean_phrase:
+                        result = ' '.join(clean_phrase)
+                        logger.info(f"Found via keyword: '{result}'")
+                        return [result]
+        
+        # STRATEGY 3: Use NER (but filter output!)
+        if self.ner_model and self.ner_tokenizer:
+            try:
+                entities = self._extract_food_items_ner(text)
+                
+                if entities:
+                    # Filter entities
+                    valid_entities = []
+                    for entity in entities:
+                        word = entity.strip()
+                        
+                        # Skip noise words
+                        if word.lower() in NOISE_WORDS:
+                            continue
+                        
+                        # Skip very short words
+                        if len(word) < 3:
+                            continue
+                        
+                        # Skip if it's just numbers
+                        if word.isdigit():
+                            continue
+                        
+                        valid_entities.append(word)
+                    
+                    if valid_entities:
+                        # Take the longest valid entity
+                        longest = max(valid_entities, key=len)
+                        
+                        # Clean it further
+                        longest_words = longest.split()
+                        clean_words = [w for w in longest_words if w.lower() not in NOISE_WORDS]
+                        
+                        if clean_words:
+                            result = ' '.join(clean_words)
+                            logger.info(f"Found via NER: '{result}'")
+                            return [result]
+            
+            except Exception as e:
+                logger.warning(f"NER extraction failed: {e}")
+        
+        # STRATEGY 4: Rule-based fallback
+        # Remove noise words and take last 1-3 words (usually the food)
+        clean_words = [w for w in words if w.lower() not in NOISE_WORDS]
+        
+        if len(clean_words) >= 2:
+            # Take last 2-3 words
+            result = ' '.join(clean_words[-min(3, len(clean_words)):])
+            logger.info(f"Found via rules: '{result}'")
+            return [result]
+        elif clean_words:
+            logger.info(f"Found via rules: '{clean_words[-1]}'")
+            return [clean_words[-1]]
+        
+        # LAST RESORT: Return original text cleaned
+        logger.warning(f"Could not extract food from: '{text}'")
+        return [text_lower]
     
     def _extract_food_items_ner(self, text: str) -> List[str]:
         """Extract food items using NER model"""

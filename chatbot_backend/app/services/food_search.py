@@ -1,6 +1,8 @@
 from typing import List, Dict, Any, Tuple
 from rapidfuzz import fuzz, process
 import logging
+import json
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,10 @@ class FoodSearchService:
         # Semantic embeddings cache
         self.dish_embeddings = None
         self.usda_embeddings = None
+        
+        # Load food aliases
+        self.aliases = self._load_food_aliases()
+        logger.info(f"Loaded {len(self.aliases)} food name aliases")
         
         logger.info(f"Search index:  {len(self.search_index)} total ({len(self.dish_index)} dishes, {len(self.usda_index)} USDA)")
     
@@ -108,6 +114,37 @@ class FoodSearchService:
         
         return index
     
+    def _load_food_aliases(self) -> dict:
+        """Load food name aliases for better matching"""
+        try:
+            aliases_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'food_aliases.json')
+            if os.path.exists(aliases_path):
+                with open(aliases_path, 'r', encoding='utf-8') as f:
+                    aliases = json.load(f)
+                return aliases
+            else:
+                logger.warning("food_aliases.json not found, using empty aliases")
+                return {}
+        except Exception as e:
+            logger.error(f"Failed to load food aliases: {e}")
+            return {}
+    
+    def _normalize_with_aliases(self, query: str) -> str:
+        """Normalize query using food name aliases"""
+        query_lower = query.lower().strip()
+        
+        # First check if query IS a canonical name
+        if query_lower in self.aliases:
+            return query_lower
+        
+        # Check if query matches any alias
+        for canonical, alias_list in self.aliases.items():
+            if query_lower in [a.lower() for a in alias_list]:
+                logger.info(f"Alias match: '{query}' → '{canonical}'")
+                return canonical
+        
+        return query_lower
+    
     def precompute_embeddings(self):
         """Pre-compute semantic embeddings for all dishes on startup"""
         from app.config import settings
@@ -166,6 +203,12 @@ class FoodSearchService:
         if not query_lower: 
             return []
         
+        # Apply alias normalization FIRST
+        normalized_query = self._normalize_with_aliases(query_lower)
+        if normalized_query != query_lower:
+            logger.info(f"Using alias: '{query}' → '{normalized_query}'")
+            query_lower = normalized_query
+        
         logger.info(f"Searching for: '{query_lower}' (country: {country_lower})")
         
         # ========================================
@@ -211,7 +254,7 @@ class FoodSearchService:
         if results: 
             results.sort(key=lambda x: x[2], reverse=True)
             
-            if results[0][2] >= 0.70:  # Good confidence threshold
+            if results[0][2] >= 0.75:  # Good confidence threshold
                 logger.info(f"✅ Found dish:  {results[0][0].get('dish_name')} (confidence: {results[0][2]:.2f})")
                 return results[:top_k]
             else:
@@ -280,10 +323,12 @@ class FoodSearchService:
             for idx in top_indices:
                 idx = idx.item()
                 score = similarities[idx].item()
+                item = self.dish_index[idx]
+                
+                logger.debug(f"Semantic candidate: {item['original_name']} (score: {score:.3f}, country: {item['country']})")
                 
                 # Only include if score is reasonable
-                if score >= 0.4:  # Semantic similarity threshold
-                    item = self.dish_index[idx]
+                if score >= 0.75:  # Semantic similarity threshold
                     
                     # Apply country filter/penalty
                     final_score = score
@@ -325,7 +370,7 @@ class FoodSearchService:
                 score = similarities[idx].item()
                 
                 # Only include if score is reasonable
-                if score >= 0.5:  # Higher threshold for USDA
+                if score >= 0.70:  # Higher threshold for USDA
                     item = self.usda_index[idx]
                     results.append((item["data"], item["source"], score))
             
@@ -347,7 +392,7 @@ class FoodSearchService:
                 matches = process.extract(query, country_dish_names, scorer=fuzz.WRatio, limit=3)
                 
                 for name, score, _ in matches:
-                    if score >= 70:
+                    if score >= 75:
                         for dish_name, item in country_dishes:
                             if dish_name == name:
                                 results.append((item["data"], item["source"], score / 100.0))
@@ -358,7 +403,7 @@ class FoodSearchService:
             matches = process.extract(query, self.dish_names, scorer=fuzz.WRatio, limit=3)
             
             for name, score, _ in matches:
-                if score >= 70:
+                if score >= 75:
                     for item in self.dish_index:
                         if item["name"] == name:
                             final_score = score / 100.0

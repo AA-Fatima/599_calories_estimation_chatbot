@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     DISHES_PATH: str = "app/data/raw/dishes.xlsx"
     
     # NLP settings
-    SIMILARITY_THRESHOLD: float = 0.7
+    SIMILARITY_THRESHOLD: float = 0.75  # Changed from 0.7
+    FUZZY_THRESHOLD: int = 75  # Minimum fuzzy match score
     
     # ML Configuration
     USE_ML_INTENT_CLASSIFICATION: bool = True

@@ -37,13 +37,33 @@ class NLPEngine:
             self.translator = None
     
     def _init_semantic_model(self):
-        """Initialize semantic similarity model"""
+        """Initialize semantic similarity model with Arabic support"""
         try: 
             from sentence_transformers import SentenceTransformer
-            start_time = time.time()
-            self.semantic_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-            load_time = time.time() - start_time
-            logger.info(f"✅ Semantic model initialized in {load_time:.2f}s")
+            import os
+            
+            # Try Arabic-optimized model first
+            try:
+                logger.info("Loading Arabic-optimized model...")
+                start_time = time.time()
+                self.semantic_model = SentenceTransformer('aubmindlab/bert-base-arabertv2')
+                load_time = time.time() - start_time
+                logger.info(f"✅ ArabicBERT model loaded successfully in {load_time:.2f}s")
+                return
+            except Exception as e:
+                logger.warning(f"ArabicBERT not available: {e}, trying fallback...")
+            
+            # Fallback to multilingual model
+            try:
+                start_time = time.time()
+                self.semantic_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                load_time = time.time() - start_time
+                logger.info(f"✅ Multilingual model loaded (fallback) in {load_time:.2f}s")
+                return
+            except Exception as e2:
+                logger.error(f"Failed to load any semantic model: {e2}")
+                self.semantic_model = None
+                
         except Exception as e: 
             logger.warning(f"Semantic model not available: {e}")
             self.semantic_model = None
@@ -146,34 +166,32 @@ class NLPEngine:
         return "english"
     
     def _normalize_text(self, text: str, has_arabic: bool) -> str:
-        """
-        Normalize text: 
-        - If Arabic script: translate to English
-        - If Latin text (English/Franco): just clean it, DON'T translate! 
-        """
+        """Enhanced normalization with better transliteration"""
         result = text.strip()
         
-        # ONLY translate if text has Arabic script
+        # Translate Arabic script
         if has_arabic and self.translator:
             try:
-                # Extract and translate only Arabic parts
                 translated = self.translator.translate(result)
                 if translated: 
                     result = translated
-                    logger.info(f"Translated Arabic:  '{text}' -> '{result}'")
+                    logger.info(f"Translated: '{text}' → '{result}'")
             except Exception as e: 
                 logger.warning(f"Translation failed: {e}")
         
-        # Convert to lowercase
+        # Lowercase
         result = result.lower()
         
-        # Handle Franco-Arabic numbers (for Franco text)
-        if self._is_franco_arabic(text):
-            franco_numbers = {'2':  'a', '3': 'a', '5': 'kh', '6': 't', '7': 'h', '8': 'q', '9': 's'}
-            for num, letter in franco_numbers.items():
-                result = result.replace(num, letter)
+        # Enhanced Franco-Arabic normalization
+        franco_map = {
+            '2': 'a', '3': 'a', '5': 'kh', '6': 't', '7': 'h', 
+            '8': 'q', '9': 's', ''': '', ''': ''
+        }
         
-        # Clean up spaces
+        for num, letter in franco_map.items():
+            result = result.replace(num, letter)
+        
+        # Remove extra spaces
         result = ' '.join(result.split())
         
         return result.strip()

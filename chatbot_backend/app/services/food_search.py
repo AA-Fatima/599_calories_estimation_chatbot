@@ -176,7 +176,7 @@ class FoodSearchService:
         
         # Detect search type if auto
         if search_type == 'auto':
-            search_type = self.nlp_engine.classify_food_type(query_lower)
+            search_type = self.nlp_engine.classify_food_type(query)
             logger.info(f"Auto-detected search type: {search_type.upper()}")
         
         # Route to appropriate search strategy

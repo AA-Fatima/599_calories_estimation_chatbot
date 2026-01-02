@@ -39,7 +39,7 @@ class CalorieCalculatorService:
 
             
              # Search for the food
-            search_results = self.food_search.search(food_name, country)
+            search_results = self.food_search.search(food_name, country, search_type='auto')
             
             if not search_results: 
                 logger.info(f"No results found for:  {food_name}")

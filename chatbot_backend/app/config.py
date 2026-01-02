@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     USE_ML_INTENT_CLASSIFICATION: bool = True
     USE_SEMANTIC_SEARCH: bool = True
     USE_NER_EXTRACTION: bool = True
+    USE_FOOD_TYPE_CLASSIFICATION: bool = True
     ML_CONFIDENCE_THRESHOLD: float = 0.5
     
     # Server settings

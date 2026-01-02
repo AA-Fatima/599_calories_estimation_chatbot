@@ -166,6 +166,12 @@ class FoodSearchService:
         if not query_lower: 
             return []
         
+        # Validate search_type parameter
+        valid_search_types = {'auto', 'ingredient', 'dish'}
+        if search_type not in valid_search_types:
+            logger.warning(f"Invalid search_type '{search_type}', defaulting to 'auto'")
+            search_type = 'auto'
+        
         logger.info(f"Searching for: '{query_lower}' (country: {country})")
         
         # Detect search type if auto

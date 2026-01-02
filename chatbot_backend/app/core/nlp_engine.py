@@ -8,6 +8,12 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# Food type classification constants
+MAX_INGREDIENT_WORDS = 2
+INGREDIENT_INDICATORS = {'raw', 'fresh', 'whole', 'plain', 'uncooked'}
+DISH_INDICATORS = {'sandwich', 'burger', 'pizza', 'pasta', 'plate', 'bowl', 
+                   'meal', 'crepe', 'pie', 'cake', 'with', 'and'}
+
 
 class NLPEngine:
     """Advanced NLP engine with ML-based intent classification and NER"""
@@ -535,7 +541,6 @@ class NLPEngine:
         Returns:
             'ingredient' or 'dish'
         """
-        MAX_INGREDIENT_WORDS = 2
         food_lower = food_name.lower().strip()
         word_count = len(food_lower.split())
         result = 'ingredient' if word_count <= MAX_INGREDIENT_WORDS else 'dish'
@@ -554,11 +559,6 @@ class NLPEngine:
         
         # Quick heuristics first (fast path)
         food_lower = food_name.lower().strip()
-        
-        # Explicit indicators
-        INGREDIENT_INDICATORS = {'raw', 'fresh', 'whole', 'plain', 'uncooked'}
-        DISH_INDICATORS = {'sandwich', 'burger', 'pizza', 'pasta', 'plate', 'bowl', 
-                           'meal', 'crepe', 'pie', 'cake', 'with', 'and'}
         
         has_ingredient_indicator = any(ind in food_lower for ind in INGREDIENT_INDICATORS)
         has_dish_indicator = any(ind in food_lower for ind in DISH_INDICATORS)

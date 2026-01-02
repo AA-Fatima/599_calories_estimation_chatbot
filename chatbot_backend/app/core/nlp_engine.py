@@ -40,6 +40,11 @@ class NLPEngine:
     
     def _init_semantic_model(self):
         """Initialize semantic similarity model"""
+        from app.config import settings
+        if not settings.USE_SEMANTIC_SEARCH:
+            logger.info("⚠️ Semantic search disabled in config")
+            return
+            
         try: 
             from sentence_transformers import SentenceTransformer
             start_time = time.time()

@@ -1,0 +1,155 @@
+<div class="admin-container">
+  <div class="header">
+    <h1>Admin Dashboard</h1>
+    <p class="subtitle">Manage dishes and view missing items</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button 
+      class="tab" 
+      [class.active]="activeTab() === 'dishes'"
+      (click)="setActiveTab('dishes')">
+      Dishes ({{ dishes().length }})
+    </button>
+    <button 
+      class="tab" 
+      [class.active]="activeTab() === 'missing'"
+      (click)="setActiveTab('missing')">
+      Missing Dishes ({{ missingDishes().length }})
+    </button>
+  </div>
+
+  <!-- Dishes Tab -->
+  <div *ngIf="activeTab() === 'dishes'" class="content">
+    <div class="actions-bar">
+      <button class="btn btn-primary" (click)="openAddModal()">
+        <span class="icon">+</span>
+        Add New Dish
+      </button>
+    </div>
+
+    <div *ngIf="isLoading()" class="loading">Loading...</div>
+
+    <div *ngIf="!isLoading() && dishes().length === 0" class="empty-state">
+      <p>No dishes found. Add your first dish!</p>
+    </div>
+
+    <table *ngIf="!isLoading() && dishes().length > 0" class="data-table">
+      <thead>
+        <tr>
+          <th>Dish Name</th>
+          <th>Country</th>
+          <th>Calories</th>
+          <th>Weight (g)</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let dish of dishes()">
+          <td>{{ dish.dish_name }}</td>
+          <td>{{ dish.country }}</td>
+          <td>{{ dish.total_calories || 0 }}</td>
+          <td>{{ dish.weight_g || 0 }}</td>
+          <td class="actions">
+            <button class="btn-icon edit" (click)="openEditModal(dish)" title="Edit">
+              ✏️
+            </button>
+            <button class="btn-icon delete" (click)="deleteDish(dish)" title="Delete">
+              🗑️
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Missing Dishes Tab -->
+  <div *ngIf="activeTab() === 'missing'" class="content">
+    <div *ngIf="missingDishes().length === 0" class="empty-state">
+      <p>No missing dishes logged yet.</p>
+    </div>
+
+    <table *ngIf="missingDishes().length > 0" class="data-table">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Dish Name</th>
+          <th>Country</th>
+          <th>User Query</th>
+          <th>GPT Ingredients</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let missing of missingDishes()">
+          <td>{{ missing.timestamp | date:'short' }}</td>
+          <td>{{ missing.dish_name }}</td>
+          <td>{{ missing.country }}</td>
+          <td>{{ missing.user_query }}</td>
+          <td class="ingredients">{{ missing.gpt_ingredients }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div *ngIf="showAddModal() || showEditModal()" class="modal-overlay" (click)="closeModal()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>{{ showEditModal() ? 'Edit Dish' : 'Add New Dish' }}</h2>
+      <button class="close-btn" (click)="closeModal()">×</button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Dish Name *</label>
+        <input 
+          type="text" 
+          [(ngModel)]="currentDish.dish_name"
+          placeholder="e.g., Chicken Shawarma"
+          class="form-control">
+      </div>
+
+      <div class="form-group">
+        <label>Country *</label>
+        <select [(ngModel)]="currentDish.country" class="form-control">
+          <option value="lebanon">Lebanon</option>
+          <option value="syria">Syria</option>
+          <option value="egypt">Egypt</option>
+          <option value="saudi">Saudi Arabia</option>
+          <option value="iraq">Iraq</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Calories</label>
+          <input 
+            type="number" 
+            [(ngModel)]="currentDish.total_calories"
+            placeholder="e.g., 650"
+            class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label>Weight (g)</label>
+          <input 
+            type="number" 
+            [(ngModel)]="currentDish.weight_g"
+            placeholder="e.g., 350"
+            class="form-control">
+        </div>
+      </div>
+
+      <p class="note">* Required fields</p>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+      <button class="btn btn-primary" (click)="saveDish()">
+        {{ showEditModal() ? 'Update' : 'Add' }} Dish
+      </button>
+    </div>
+  </div>
+</div>

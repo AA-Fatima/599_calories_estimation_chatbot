@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
-from app.api.routes import chat, countries, evaluation, chat_v2
+from app.api.routes import chat, countries, evaluation, chat_v2, admin
 from app.data.loaders import USDALoader, DishesLoader
 from app.core.nlp_engine import NLPEngine
 from app.services.food_search import FoodSearchService
@@ -86,6 +86,9 @@ async def lifespan(app: FastAPI):
     chat_v2.app_state["calculator_v2"] = calculator_v2
     chat_v2.app_state["missing_logger"] = missing_logger
     
+    # Store admin services
+    admin.app_state["missing_logger"] = missing_logger
+    
     logger.info("✅ All services initialized successfully!")
     logger.info(f"📊 Loaded:  {len(usda_foundation.get('foods', []))} USDA Foundation foods")
     logger.info(f"📊 Loaded:  {len(usda_sr_legacy.get('foods', []))} USDA SR Legacy foods")
@@ -120,6 +123,7 @@ app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
 app.include_router(chat_v2.router, prefix="/api/chat_v2", tags=["Chat V2 (GPT-powered)"])
 app.include_router(countries.router, prefix="/api/countries", tags=["Countries"])
 app.include_router(evaluation.router, prefix="/api/evaluation", tags=["Evaluation"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 
 @app.get("/")
 async def root():

@@ -1,5 +1,7 @@
 import re
 import logging
+import json
+import os
 from typing import List, Dict, Any, Optional, Tuple
 from app.models.schemas import Intent, ParsedQuery
 from langdetect import detect, LangDetectException
@@ -7,6 +9,47 @@ from app.config import settings
 import time
 
 logger = logging.getLogger(__name__)
+
+# Module-level constants for noise filtering
+NOISE_WORDS = {
+    # English noise
+    'ade', 'adeh', 'shu', 'eh', 'fi', 'b', 'in', 'of', 'the', 'a', 'an',
+    'calories', 'calorie', 'kcal', 'cal', 'how', 'many', 'much', 'what',
+    'tell', 'me', 'about', 'is', 'are', 'have', 'has', 'there', 'want', 'know',
+    'hello', 'hi', 'hey', 'please', 'thanks', 'thank', 'you',
+    'would', 'like', 'to', 'i', 'my', 'can', 'get',
+    # Arabic noise  
+    'كم', 'أدي', 'شو', 'ايه', 'سعرة', 'سعرات', 'في', 'ب', 'بدي', 'اعرف',
+    # Franco-Arabic noise
+    'kam', 'badi', 'bi', 'ma3'
+}
+
+FOOD_KEYWORDS = {
+    # Expanded food keywords
+    'sandwich', 'sandwish', 'sandwech', 'plate', 'platter', 'bowl',
+    'fajita', 'fahita', 'faheta', 'shawarma', 'shawurma', 'shawerma', 'shwerma',
+    'falafel', 'felafel', 'hummus', 'houmous', 'hommos', '7ommos',
+    'tabbouleh', 'tabouli', 'tabbol', 'fattoush', 'fatoush', 'fattos',
+    'kibbeh', 'kibbe', 'kabsa', 'kabseh', 'koshari', 'kushari', 'koosharii',
+    'mansaf', 'mensaf', 'baklava', 'baklawa', 'kunafa', 'knafeh',
+    'wrap', 'burger', 'pizza', 'pasta', 'rice', 'bread', 'pita',
+    'chicken', 'beef', 'lamb', 'meat', 'fish', 'shrimp',
+    'apple', 'banana', 'orange', 'tomato', 'potato',
+    # Arabic
+    'شاورما', 'فلافل', 'حمص', 'تبولة', 'فاهيتا', 'كبسة', 'فاطوش'
+}
+
+# Remove keywords for modification detection
+REMOVE_KEYWORDS = {
+    'without', 'no', 'remove', 'minus', 'except', 'hold',
+    'bidun', 'bala', 'bila', 'بدون', 'بلا', 'ما في', 'مافي'
+}
+
+# Add keywords for modification detection
+ADD_KEYWORDS = {
+    'with', 'add', 'extra', 'plus', 'more', 'additional',
+    'ma3', 'zid', 'ziada', 'مع', 'زيد', 'زيادة', 'اضافي'
+}
 
 
 class NLPEngine:
@@ -19,11 +62,38 @@ class NLPEngine:
         self.ner_model = None
         self.ner_tokenizer = None
         self.initialized = False
+        self.food_aliases = {}
+        self.alias_to_canonical = {}  # Preprocessed mapping for fast lookup
         
+        self._load_food_aliases()
         self._init_translator()
         self._init_semantic_model()
         self._init_intent_classifier()
         self._init_ner_model()
+    
+    def _load_food_aliases(self):
+        """Load food aliases from JSON file"""
+        try:
+            # Get the path to food_aliases.json
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            aliases_path = os.path.join(current_dir, '..', 'data', 'food_aliases.json')
+            
+            if os.path.exists(aliases_path):
+                with open(aliases_path, 'r', encoding='utf-8') as f:
+                    self.food_aliases = json.load(f)
+                
+                # Build preprocessed alias-to-canonical mapping for faster lookups
+                for canonical, aliases in self.food_aliases.items():
+                    for alias in aliases:
+                        self.alias_to_canonical[alias.lower()] = canonical
+                
+                logger.info(f"✅ Loaded {len(self.food_aliases)} food alias groups ({len(self.alias_to_canonical)} total aliases)")
+            else:
+                logger.warning(f"Food aliases file not found at {aliases_path}")
+                self.food_aliases = {}
+        except Exception as e:
+            logger.warning(f"Failed to load food aliases: {e}")
+            self.food_aliases = {}
     
     def _init_translator(self):
         """Initialize Google Translator for Arabic ONLY"""
@@ -178,6 +248,68 @@ class NLPEngine:
         
         return result.strip()
     
+    def _normalize_franco_in_food(self, food_name: str) -> str:
+        """Normalize Franco-Arabic numbers in food names"""
+        
+        result = food_name.lower().strip()
+        
+        # First check if it's in our aliases using preprocessed map (O(1) lookup)
+        result_words = result.split()
+        for i, word in enumerate(result_words):
+            if word in self.alias_to_canonical:
+                # Replace this specific word with canonical
+                result_words[i] = self.alias_to_canonical[word]
+                return ' '.join(result_words).strip()
+        
+        # Franco number conversion
+        franco_map = {
+            '2': 'a', '3': 'a', '5': 'kh', '6': 't', 
+            '7': 'h', '8': 'q', '9': 's'
+        }
+        
+        # Apply number conversions
+        for num, letter in franco_map.items():
+            result = result.replace(num, letter)
+        
+        # Special cases for common Franco food names (after number conversion)
+        FRANCO_FOOD_MAP = {
+            'teffeha': 'apple',
+            'teffeh': 'apple', 
+            'teffaha': 'apple',
+            'shawarm': 'shawarma',
+            'shwerma': 'shawarma',
+            'falafl': 'falafel',
+            'hommos': 'hummus',
+            'tabboul': 'tabbouleh',
+            'tabol': 'tabbouleh',
+            'fattos': 'fattoush',
+            'kabab': 'kebab',
+            'kbab': 'kebab',
+            'fahita': 'fajita',
+            'faheta': 'fajita'
+        }
+        
+        # Check for exact word matches in the result
+        words = result.split()
+        normalized_words = []
+        for word in words:
+            # Check for exact match first
+            if word in FRANCO_FOOD_MAP:
+                normalized_words.append(FRANCO_FOOD_MAP[word])
+            else:
+                # Check if word contains any franco food as substring (only if word is similar length)
+                found = False
+                for franco, english in FRANCO_FOOD_MAP.items():
+                    # Only match if the word contains franco and they're similar in length
+                    if franco in word and abs(len(word) - len(franco)) <= 2:
+                        normalized_words.append(english)
+                        found = True
+                        break
+                if not found:
+                    normalized_words.append(word)
+        
+        return ' '.join(normalized_words).strip()
+    
     def _classify_intent(self, text: str, context:  Optional[Dict] = None) -> Intent:
         """Classify intent using ML (if available) or rule-based fallback"""
         
@@ -253,24 +385,124 @@ class NLPEngine:
         return Intent.QUERY_FOOD
     
     def _extract_food_items(self, text: str) -> List[str]:
-        """Extract food items using NER (if available) or rule-based fallback"""
+        """Extract food items using multi-strategy approach with Franco normalization"""
         
-        # Try NER-based extraction first
-        if self.ner_model and self.ner_tokenizer and settings.USE_NER_EXTRACTION:
-            try:
-                ner_items = self._extract_food_items_ner(text)
-                
-                if ner_items:
-                    logger.info(f"✅ NER extracted food items: {ner_items}")
-                    # Combine NER results with rule-based for better coverage
-                    rule_items = self._extract_food_items_rules(text)
-                    combined = list(set(ner_items + rule_items))
-                    return combined if combined else ner_items
-            except Exception as e:
-                logger.warning(f"NER extraction failed: {e}, falling back to rules")
+        # Always try the improved ML-based extraction first (works with or without NER)
+        try:
+            ml_items = self._extract_food_items_ml(text)
+            if ml_items:
+                logger.info(f"✅ ML extraction successful: {ml_items}")
+                return ml_items
+        except Exception as e:
+            logger.warning(f"ML extraction failed: {e}, falling back to rules")
         
         # Fallback to rule-based extraction
         return self._extract_food_items_rules(text)
+    
+    def _extract_food_items_ml(self, text: str) -> List[str]:
+        """Smart food extraction with Franco-Arabic normalization"""
+        
+        text_lower = text.lower().strip()
+        words = text_lower.split()
+        
+        # STRATEGY 1: Check aliases using preprocessed map (O(1) lookups)
+        for word in words:
+            if word in self.alias_to_canonical:
+                canonical = self.alias_to_canonical[word]
+                logger.info(f"✅ Alias match: '{word}' → '{canonical}'")
+                return [canonical]
+        
+        # STRATEGY 2: Look for food keywords with better context extraction
+        for keyword in FOOD_KEYWORDS:
+            if keyword in text_lower:
+                # Find keyword position with word boundaries
+                words_lower = [w.lower() for w in words]
+                
+                for i, word in enumerate(words_lower):
+                    if keyword in word:
+                        # Extract 1-2 words before and after
+                        start = max(0, i - 2)
+                        end = min(len(words), i + 3)
+                        context_words = words[start:end]
+                        
+                        # Filter noise aggressively
+                        clean_words = []
+                        for w in context_words:
+                            w_lower = w.lower()
+                            # Skip if noise word
+                            if w_lower in NOISE_WORDS:
+                                continue
+                            # Skip very short words (< 3 chars) unless it's a known food
+                            if len(w) < 3 and w_lower not in FOOD_KEYWORDS:
+                                continue
+                            clean_words.append(w)
+                        
+                        if clean_words:
+                            result = ' '.join(clean_words)
+                            # Apply Franco normalization
+                            result = self._normalize_franco_in_food(result)
+                            logger.info(f"✅ Keyword extraction: '{result}'")
+                            return [result]
+        
+        # STRATEGY 3: Use NER with strict filtering
+        if self.ner_model:
+            try:
+                entities = self._extract_food_items_ner(text)
+                
+                if entities:
+                    valid_entities = []
+                    for entity in entities:
+                        word = entity.strip()
+                        
+                        # Skip noise
+                        if word.lower() in NOISE_WORDS:
+                            continue
+                        
+                        # Must be at least 3 characters
+                        if len(word) < 3:
+                            continue
+                        
+                        # Skip numbers
+                        if word.isdigit():
+                            continue
+                        
+                        # Must contain food keyword or be in aliases (using preprocessed map for speed)
+                        has_food_word = any(kw in word.lower() for kw in FOOD_KEYWORDS)
+                        is_alias = word.lower() in self.alias_to_canonical
+                        
+                        if has_food_word or is_alias or len(word) <= 15:
+                            valid_entities.append(word)
+                    
+                    if valid_entities:
+                        # Take longest valid entity
+                        longest = max(valid_entities, key=len)
+                        
+                        # Final cleaning
+                        clean_words = [w for w in longest.split() if w.lower() not in NOISE_WORDS]
+                        if clean_words:
+                            result = ' '.join(clean_words)
+                            result = self._normalize_franco_in_food(result)
+                            logger.info(f"✅ NER extraction: '{result}'")
+                            return [result]
+            except Exception as e:
+                logger.warning(f"NER failed: {e}")
+        
+        # STRATEGY 4: Fallback - take last 2-3 meaningful words
+        clean_words = [w for w in words if w.lower() not in NOISE_WORDS and len(w) >= 3]
+        
+        if len(clean_words) >= 2:
+            result = ' '.join(clean_words[-2:])
+            result = self._normalize_franco_in_food(result)
+            logger.info(f"✅ Fallback extraction: '{result}'")
+            return [result]
+        elif clean_words:
+            result = clean_words[-1]
+            result = self._normalize_franco_in_food(result)
+            logger.info(f"✅ Fallback extraction: '{result}'")
+            return [result]
+        
+        logger.warning(f"❌ Could not extract food from: '{text}'")
+        return [self._normalize_franco_in_food(text_lower)]
     
     def _extract_food_items_ner(self, text: str) -> List[str]:
         """Extract food items using NER model"""
@@ -336,11 +568,14 @@ class NLPEngine:
                 food_part = text_lower.split(pattern.strip())[0].strip()
                 food_part = self._clean_food_name(food_part)
                 if food_part:
+                    # Apply Franco normalization before returning
+                    food_part = self._normalize_franco_in_food(food_part)
                     return [food_part]
         
-        # Clean and return
+        # Clean and return with Franco normalization
         cleaned = self._clean_food_name(text_lower)
-        return [cleaned] if cleaned else [text_lower]
+        cleaned = self._normalize_franco_in_food(cleaned)
+        return [cleaned] if cleaned else [self._normalize_franco_in_food(text_lower)]
     
     def _clean_food_name(self, text: str) -> str:
         """Remove question words and common phrases"""
@@ -364,33 +599,35 @@ class NLPEngine:
         return ' '.join(words).strip()
     
     def _extract_modifications(self, text: str) -> Dict[str, List[str]]: 
-        """Extract modifications"""
+        """Extract modifications with Arabic/Franco support"""
         modifications = {"remove": [], "add":  []}
-        text_lower = ' ' + text.lower() + ' '
+        text_lower = text.lower()
         
-        # Remove patterns
-        remove_patterns = [' without ', ' bala ', ' bidun ', ' bidoun ', ' remove ', ' minus ', ' no ', ' exclude ']
-        
-        for pattern in remove_patterns:
-            if pattern in text_lower:
-                parts = text_lower.split(pattern)
+        # Check for remove patterns
+        for keyword in REMOVE_KEYWORDS:
+            if keyword in text_lower:
+                # Extract what comes after the keyword
+                parts = text_lower.split(keyword)
                 if len(parts) > 1:
-                    after = parts[1].strip()
-                    item = self._extract_first_item(after)
-                    if item: 
+                    after = parts[1].strip().split()[:3]  # Take up to first 3 words after keyword
+                    # Filter noise
+                    item_words = [w for w in after if w not in NOISE_WORDS and len(w) >= 3]
+                    if item_words:
+                        item = ' '.join(item_words)
                         modifications["remove"].append(item)
+                        logger.info(f"✅ Detected REMOVE: '{item}'")
         
-        # Add patterns
-        add_patterns = [' with added ', ' with extra ', ' extra ', ' add ', ' plus ']
-        
-        for pattern in add_patterns:
-            if pattern in text_lower:
-                parts = text_lower.split(pattern)
+        # Check for add patterns
+        for keyword in ADD_KEYWORDS:
+            if keyword in text_lower:
+                parts = text_lower.split(keyword)
                 if len(parts) > 1:
-                    after = parts[1].strip()
-                    item = self._extract_first_item(after)
-                    if item:
+                    after = parts[1].strip().split()[:3]  # Take up to first 3 words after keyword
+                    item_words = [w for w in after if w not in NOISE_WORDS and len(w) >= 3]
+                    if item_words:
+                        item = ' '.join(item_words)
                         modifications["add"].append(item)
+                        logger.info(f"✅ Detected ADD: '{item}'")
         
         return modifications
     

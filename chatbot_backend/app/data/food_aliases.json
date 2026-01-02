@@ -1,0 +1,23 @@
+{
+  "apple": ["teffe7a", "teffaha", "teffeh", "تفاحة", "تفاح"],
+  "banana": ["mooz", "moz", "موز"],
+  "tomato": ["bandora", "banadoora", "بندورة", "طماطم"],
+  "potato": ["batata", "بطاطا", "بطاطس"],
+  "chicken": ["djej", "dajaj", "دجاج"],
+  "beef": ["la7me", "lahme", "لحمة", "لحم بقري"],
+  "rice": ["rez", "roz", "أرز"],
+  "bread": ["khobez", "khubz", "خبز"],
+  
+  "koshari": ["kushari", "koosharii", "koshary", "كوشاري", "كوشري", "كشري"],
+  "shawarma": ["shawurma", "shawerma", "shwerma", "شاورما", "شاورمة"],
+  "falafel": ["felafel", "falafl", "فلافل"],
+  "hummus": ["houmous", "hommos", "7ommos", "حمص"],
+  "tabbouleh": ["tabouli", "tabbol", "tabboul", "تبولة", "التبولة"],
+  "fattoush": ["fatoush", "fattos", "فتوش"],
+  "fajita": ["fahita", "faheta", "فاهيتا"],
+  "wara2_enab": ["wara2 enab", "wara2 3enab", "yabra2", "ورق عنب", "يبرق"],
+  "kibbeh": ["kibbe", "kubbeh", "kbbe", "كبة"],
+  "kabsa": ["kabsah", "kabseh", "كبسة"],
+  "baklava": ["baklawa", "ba2lawa", "بقلاوة"],
+  "kunafa": ["knafeh", "kanafeh", "كنافة"]
+}

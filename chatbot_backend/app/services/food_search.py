@@ -152,27 +152,85 @@ class FoodSearchService:
             self.dish_embeddings = None
             self.usda_embeddings = None
     
-    def search(self, query: str, country: str = "", top_k: int = 5) -> List[Tuple[Dict, str, float]]: 
+    def search(self, query: str, country: str = "", top_k: int = 5, search_type: str = 'auto') -> List[Tuple[Dict, str, float]]: 
         """
-        Search for food with priority: 
-        1. Exact match in dishes and USDA
-        2. Semantic search in dishes (if available)
-        3. Fuzzy search in dishes
-        4. Semantic/fuzzy search in USDA
+        Search for food with type awareness
+        
+        Args:
+            query: Food name to search
+            country: Country filter
+            top_k: Number of results
+            search_type: 'ingredient', 'dish', or 'auto' (detect automatically)
         """
         query_lower = query.lower().strip()
-        country_lower = country.lower().strip() if country else ""
         
         if not query_lower: 
             return []
         
-        logger.info(f"Searching for: '{query_lower}' (country: {country_lower})")
+        logger.info(f"Searching for: '{query_lower}' (country: {country})")
+        
+        # Detect search type if auto
+        if search_type == 'auto':
+            search_type = self.nlp_engine.classify_food_type(query_lower)
+            logger.info(f"Auto-detected search type: {search_type.upper()}")
+        
+        # Route to appropriate search strategy
+        if search_type == 'ingredient':
+            logger.info(f"🍎 INGREDIENT SEARCH for: '{query_lower}'")
+            return self._search_ingredient_priority(query_lower, top_k)
+        else:
+            logger.info(f"🍽️ DISH SEARCH for: '{query_lower}' (country: {country})")
+            return self._search_dish_priority(query_lower, country, top_k)
+    
+    def _search_ingredient_priority(self, query: str, top_k: int = 5) -> List[Tuple[Dict, str, float]]:
+        """Search USDA only (skip dishes entirely)"""
+        
+        logger.info("Searching USDA databases only (ingredient mode)...")
+        
+        # Exact match in USDA
+        for item in self.usda_index:
+            if query == item["name"]:
+                logger.info(f"✅ Exact USDA match: {item['original_name']}")
+                return [(item["data"], item["source"], 1.0)]
+        
+        results = []
+        
+        # Semantic search in USDA
+        from app.config import settings
+        if settings.USE_SEMANTIC_SEARCH and self.usda_embeddings is not None:
+            semantic_results = self._semantic_search_usda(query)
+            if semantic_results:
+                results.extend(semantic_results)
+                logger.info(f"Semantic USDA: {len(semantic_results)} results")
+        
+        # Fuzzy search in USDA
+        fuzzy_results = self._fuzzy_search_usda(query)
+        if fuzzy_results:
+            seen = {data.get("description", "").lower() for data, _, _ in results}
+            for data, source, score in fuzzy_results:
+                name = data.get("description", "").lower()
+                if name not in seen:
+                    results.append((data, source, score))
+                    seen.add(name)
+        
+        if results:
+            results.sort(key=lambda x: x[2], reverse=True)
+            logger.info(f"✅ Top USDA result: {results[0][0].get('description')} ({results[0][2]:.2f})")
+            return results[:top_k]
+        
+        logger.info(f"❌ No USDA results for: '{query}'")
+        return []
+    
+    def _search_dish_priority(self, query: str, country: str, top_k: int) -> List[Tuple[Dict, str, float]]:
+        """Search dishes first, then USDA (normal flow)"""
+        
+        country_lower = country.lower().strip() if country else ""
         
         # ========================================
         # STEP 1: EXACT MATCH (dishes and USDA)
         # ========================================
         for item in self.search_index:
-            if query_lower == item["name"]:
+            if query == item["name"]:
                 if item["source"] == "dishes": 
                     if not country_lower or item["country"] == country_lower: 
                         logger.info(f"✅ Exact dish match: {item['original_name']}")
@@ -191,13 +249,13 @@ class FoodSearchService:
         # Try semantic search first if available
         from app.config import settings
         if settings.USE_SEMANTIC_SEARCH and self.dish_embeddings is not None:
-            semantic_results = self._semantic_search_dishes(query_lower, country_lower)
+            semantic_results = self._semantic_search_dishes(query, country_lower)
             if semantic_results:
                 results.extend(semantic_results)
                 logger.info(f"Semantic search found {len(semantic_results)} dish results")
         
         # Combine with fuzzy search for robustness
-        fuzzy_results = self._fuzzy_search_dishes(query_lower, country_lower)
+        fuzzy_results = self._fuzzy_search_dishes(query, country_lower)
         if fuzzy_results:
             # Merge results, avoiding duplicates
             seen_names = {data.get("dish_name", "").lower() for data, _, _ in results}
@@ -228,13 +286,13 @@ class FoodSearchService:
         
         # Try semantic search first if available
         if settings.USE_SEMANTIC_SEARCH and self.usda_embeddings is not None:
-            semantic_usda = self._semantic_search_usda(query_lower)
+            semantic_usda = self._semantic_search_usda(query)
             if semantic_usda:
                 usda_results.extend(semantic_usda)
                 logger.info(f"Semantic search found {len(semantic_usda)} USDA results")
         
         # Combine with word-level and fuzzy matching
-        word_fuzzy_usda = self._fuzzy_search_usda(query_lower)
+        word_fuzzy_usda = self._fuzzy_search_usda(query)
         if word_fuzzy_usda:
             seen_names = {data.get("description", "").lower() for data, _, _ in usda_results}
             for data, source, score in word_fuzzy_usda:
@@ -254,7 +312,7 @@ class FoodSearchService:
         # ========================================
         # STEP 4: NOTHING FOUND
         # ========================================
-        logger.info(f"❌ No results found for:  '{query_lower}'")
+        logger.info(f"❌ No results found for:  '{query}'")
         return []
     
     def _semantic_search_dishes(self, query: str, country: str = "") -> List[Tuple[Dict, str, float]]:

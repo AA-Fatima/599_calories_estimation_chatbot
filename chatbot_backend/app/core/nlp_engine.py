@@ -18,12 +18,14 @@ class NLPEngine:
         self.intent_classifier = None
         self.ner_model = None
         self.ner_tokenizer = None
+        self.food_type_classifier = None
         self.initialized = False
         
         self._init_translator()
         self._init_semantic_model()
         self._init_intent_classifier()
         self._init_ner_model()
+        self._init_food_type_classifier()
     
     def _init_translator(self):
         """Initialize Google Translator for Arabic ONLY"""
@@ -86,6 +88,34 @@ class NLPEngine:
             logger.warning(f"NER model not available: {e}")
             self.ner_model = None
             self.ner_tokenizer = None
+    
+    def _init_food_type_classifier(self):
+        """Initialize zero-shot food type classifier"""
+        if not settings.USE_FOOD_TYPE_CLASSIFICATION:
+            logger.info("⚠️ Food type classification disabled in config")
+            return
+        
+        try:
+            start = time.time()
+            logger.info("Loading food type classifier...")
+            
+            # Use the same zero-shot model as intent classifier (already loaded)
+            if self.intent_classifier:
+                self.food_type_classifier = self.intent_classifier
+                logger.info(f"✅ Reusing intent classifier for food type classification")
+            else:
+                from transformers import pipeline
+                self.food_type_classifier = pipeline(
+                    "zero-shot-classification",
+                    model="facebook/bart-large-mnli",
+                    device=-1  # CPU
+                )
+                elapsed = time.time() - start
+                logger.info(f"✅ Food type classifier initialized in {elapsed:.2f}s")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Food type classifier not available: {e}")
+            self.food_type_classifier = None
     
     async def initialize(self):
         """Initialize NLP engine"""
@@ -490,6 +520,73 @@ class NLPEngine:
         from rapidfuzz import fuzz, process
         matches = process.extract(query, candidates, scorer=fuzz.token_set_ratio, limit=top_k)
         return [(m[0], m[1] / 100.0) for m in matches]
+    
+    def classify_food_type(self, food_name: str) -> str:
+        """
+        Classify if food is an ingredient or a prepared dish
+        
+        Args:
+            food_name: Food name to classify
+            
+        Returns:
+            'ingredient' or 'dish'
+        """
+        
+        # Quick heuristics first (fast path)
+        food_lower = food_name.lower().strip()
+        
+        # Explicit indicators
+        INGREDIENT_INDICATORS = {'raw', 'fresh', 'whole', 'plain', 'uncooked'}
+        DISH_INDICATORS = {'sandwich', 'burger', 'pizza', 'pasta', 'plate', 'bowl', 
+                           'meal', 'crepe', 'pie', 'cake', 'with', 'and'}
+        
+        has_ingredient_indicator = any(ind in food_lower for ind in INGREDIENT_INDICATORS)
+        has_dish_indicator = any(ind in food_lower for ind in DISH_INDICATORS)
+        
+        if has_dish_indicator:
+            logger.info(f"Quick classification: '{food_name}' → DISH (keyword match)")
+            return 'dish'
+        
+        if has_ingredient_indicator:
+            logger.info(f"Quick classification: '{food_name}' → INGREDIENT (keyword match)")
+            return 'ingredient'
+        
+        # Use ML classifier
+        if not self.food_type_classifier:
+            # Fallback: single word = ingredient, multiple = dish
+            result = 'ingredient' if len(food_lower.split()) <= 2 else 'dish'
+            logger.info(f"Fallback classification: '{food_name}' → {result.upper()}")
+            return result
+        
+        try:
+            # Define candidate labels for zero-shot classification
+            candidate_labels = [
+                "raw ingredient or fresh produce",
+                "prepared dish or cooked meal"
+            ]
+            
+            # Classify
+            result = self.food_type_classifier(
+                food_name,
+                candidate_labels,
+                multi_label=False
+            )
+            
+            top_label = result['labels'][0]
+            confidence = result['scores'][0]
+            
+            # Map to simple category
+            food_type = 'ingredient' if 'ingredient' in top_label or 'fresh' in top_label else 'dish'
+            
+            logger.info(f"ML classification: '{food_name}' → {food_type.upper()} (confidence: {confidence:.2f})")
+            
+            return food_type
+            
+        except Exception as e:
+            logger.warning(f"ML classification failed: {e}, using fallback")
+            # Fallback
+            result = 'ingredient' if len(food_lower.split()) <= 2 else 'dish'
+            return result
     
     def is_arabic(self, text: str) -> bool:
         """Check if text contains Arabic"""

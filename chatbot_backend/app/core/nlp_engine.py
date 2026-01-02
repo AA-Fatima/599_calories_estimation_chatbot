@@ -594,8 +594,9 @@ class NLPEngine:
             top_label = result['labels'][0]
             confidence = result['scores'][0]
             
-            # Map to simple category
-            food_type = 'ingredient' if 'ingredient' in top_label or 'fresh' in top_label else 'dish'
+            # Map to simple category using index
+            # The model returns the most likely label first
+            food_type = 'ingredient' if top_label == candidate_labels[0] else 'dish'
             
             logger.info(f"ML classification: '{food_name}' → {food_type.upper()} (confidence: {confidence:.2f})")
             

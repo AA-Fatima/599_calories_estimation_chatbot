@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
-from app.api.routes import chat, countries, evaluation
+from app.api.routes import chat, countries, evaluation, chat_v2
 from app.data.loaders import USDALoader, DishesLoader
 from app.core.nlp_engine import NLPEngine
 from app.services.food_search import FoodSearchService
@@ -11,6 +11,9 @@ from app.services.calorie_calculator import CalorieCalculatorService
 from app.services.conversation_manager import ConversationManager
 from app.services.fallback_service import FallbackService
 from app.services.missing_dish_logger import MissingDishLogger
+from app.services.gpt_parser import GPTParser
+from app.services.dataset_search import DatasetSearch
+from app.services.calorie_calculator_v2 import CalorieCalculatorV2
 from app.config import settings
 
 
@@ -48,12 +51,40 @@ async def lifespan(app: FastAPI):
     calorie_calculator = CalorieCalculatorService(food_search, fallback_service, missing_logger)
     conversation_manager = ConversationManager()
     
+    # Initialize new V2 services
+    logger.info("⚙️ Initializing V2 services (GPT-powered)...")
+    
+    # Combine USDA foods into single list
+    usda_all_foods = usda_foundation.get('foods', []) + usda_sr_legacy.get('foods', [])
+    dishes_list = dishes.get('all_dishes', [])
+    
+    # Initialize GPT Parser
+    gpt_parser = None
+    if settings.OPENAI_API_KEY:
+        gpt_parser = GPTParser(settings.OPENAI_API_KEY)
+        logger.info("✅ GPT Parser initialized")
+    else:
+        logger.warning("⚠️ OpenAI API key not set, GPT parser unavailable")
+    
+    # Initialize Dataset Search
+    dataset_search = DatasetSearch(dishes_list, usda_all_foods)
+    logger.info("✅ Dataset Search initialized")
+    
+    # Initialize Calculator V2
+    calculator_v2 = CalorieCalculatorV2(dataset_search)
+    logger.info("✅ Calorie Calculator V2 initialized")
+    
     # Store in app state (accessible from routes)
     chat.app_state["nlp_engine"] = nlp_engine
     chat.app_state["food_search"] = food_search
     chat.app_state["calorie_calculator"] = calorie_calculator
     chat.app_state["conversation_manager"] = conversation_manager
     chat.app_state["missing_logger"] = missing_logger
+    
+    # Store V2 services
+    chat_v2.app_state["gpt_parser"] = gpt_parser
+    chat_v2.app_state["calculator_v2"] = calculator_v2
+    chat_v2.app_state["missing_logger"] = missing_logger
     
     logger.info("✅ All services initialized successfully!")
     logger.info(f"📊 Loaded:  {len(usda_foundation.get('foods', []))} USDA Foundation foods")
@@ -86,6 +117,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
+app.include_router(chat_v2.router, prefix="/api/chat_v2", tags=["Chat V2 (GPT-powered)"])
 app.include_router(countries.router, prefix="/api/countries", tags=["Countries"])
 app.include_router(evaluation.router, prefix="/api/evaluation", tags=["Evaluation"])
 

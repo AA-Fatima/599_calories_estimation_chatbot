@@ -50,12 +50,19 @@ def demo_fix_1():
         result = nlp.parse_query(query)
         print_result(query, result)
         
-        # Verify
-        expected = description.split("'")[1]
-        if any(expected in item.lower() for item in result.food_items):
-            print("   ✅ VERIFIED: Franco-Arabic conversion working!\n")
+        # Verify - extract expected value from description more robustly
+        if "'" in description:
+            parts = description.split("'")
+            if len(parts) >= 2:
+                expected = parts[1]
+                if any(expected in item.lower() for item in result.food_items):
+                    print("   ✅ VERIFIED: Franco-Arabic conversion working!\n")
+                else:
+                    print(f"   ⚠️  Expected '{expected}' not found\n")
+            else:
+                print("   ℹ️  Could not extract expected value from description\n")
         else:
-            print(f"   ⚠️  Expected '{expected}' not found\n")
+            print("   ℹ️  Manual verification needed\n")
 
 def demo_fix_2():
     """Demo Fix 2: Enhanced noise word filtering"""

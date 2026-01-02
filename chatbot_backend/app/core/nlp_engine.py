@@ -253,16 +253,13 @@ class NLPEngine:
         
         result = food_name.lower().strip()
         
-        # First check if it's in our aliases (exact word match takes priority)
-        if self.food_aliases:
-            result_words = result.split()
-            for canonical, aliases in self.food_aliases.items():
-                # Check each word in the food name
-                for i, word in enumerate(result_words):
-                    if word in [a.lower() for a in aliases]:
-                        # Replace this specific word with canonical
-                        result_words[i] = canonical
-                        return ' '.join(result_words).strip()
+        # First check if it's in our aliases using preprocessed map (O(1) lookup)
+        result_words = result.split()
+        for i, word in enumerate(result_words):
+            if word in self.alias_to_canonical:
+                # Replace this specific word with canonical
+                result_words[i] = self.alias_to_canonical[word]
+                return ' '.join(result_words).strip()
         
         # Franco number conversion
         franco_map = {
@@ -408,13 +405,12 @@ class NLPEngine:
         text_lower = text.lower().strip()
         words = text_lower.split()
         
-        # STRATEGY 1: Check aliases (highest priority)
-        if self.food_aliases:
-            for canonical, aliases in self.food_aliases.items():
-                for alias in aliases:
-                    if alias.lower() in text_lower:
-                        logger.info(f"✅ Alias match: '{alias}' → '{canonical}'")
-                        return [canonical]
+        # STRATEGY 1: Check aliases using preprocessed map (O(1) lookups)
+        for word in words:
+            if word in self.alias_to_canonical:
+                canonical = self.alias_to_canonical[word]
+                logger.info(f"✅ Alias match: '{word}' → '{canonical}'")
+                return [canonical]
         
         # STRATEGY 2: Look for food keywords with better context extraction
         for keyword in FOOD_KEYWORDS:
@@ -613,7 +609,7 @@ class NLPEngine:
                 # Extract what comes after the keyword
                 parts = text_lower.split(keyword)
                 if len(parts) > 1:
-                    after = parts[1].strip().split()[0:3]  # Take 0-3 words after keyword
+                    after = parts[1].strip().split()[:3]  # Take up to first 3 words after keyword
                     # Filter noise
                     item_words = [w for w in after if w not in NOISE_WORDS and len(w) >= 3]
                     if item_words:
@@ -626,7 +622,7 @@ class NLPEngine:
             if keyword in text_lower:
                 parts = text_lower.split(keyword)
                 if len(parts) > 1:
-                    after = parts[1].strip().split()[0:3]  # Take 0-3 words after keyword
+                    after = parts[1].strip().split()[:3]  # Take up to first 3 words after keyword
                     item_words = [w for w in after if w not in NOISE_WORDS and len(w) >= 3]
                     if item_words:
                         item = ' '.join(item_words)

@@ -42,7 +42,7 @@ class MissingDishLogger:
         except Exception as e:
             logger.error(f"Error saving missing dishes log: {e}")
     
-    def log(self, query: str, country: str, fallback_response: Dict = None, user_ingredients: List[str] = None, gpt_result: Dict = None):
+    def log(self, dish_name: str, country: str, user_query: str = None, fallback_response: Dict = None, user_ingredients: List[str] = None, gpt_result: Dict = None):
         """Log a missing dish to both CSV and JSON"""
         # Log to CSV (new format)
         try:
@@ -50,18 +50,19 @@ class MissingDishLogger:
                 writer = csv.writer(f)
                 writer.writerow([
                     datetime.now().isoformat(),
-                    query,
-                    query,  # user_query (same as dish_name for now)
+                    dish_name,
+                    user_query or dish_name,  # Use provided user_query or fall back to dish_name
                     country,
                     json.dumps(gpt_result.get('ingredients', []) if gpt_result else [])
                 ])
-            logger.info(f"📝 Logged missing dish to CSV: {query}")
+            logger.info(f"📝 Logged missing dish to CSV: {dish_name}")
         except Exception as e:
             logger.error(f"Failed to log missing dish to CSV: {e}")
         
         # Log to JSON (backward compatibility)
         entry = {
-            "query": query,
+            "query": dish_name,
+            "user_query": user_query or dish_name,
             "country": country,
             "timestamp": datetime.utcnow().isoformat(),
             "fallback_response": fallback_response,
@@ -72,13 +73,13 @@ class MissingDishLogger:
         
         # Check if already logged
         for dish in self.missing_dishes: 
-            if dish["query"].lower() == query.lower() and dish["country"] == country: 
-                logger.info(f"Dish already logged in JSON: {query}")
+            if dish["query"].lower() == dish_name.lower() and dish["country"] == country: 
+                logger.info(f"Dish already logged in JSON: {dish_name}")
                 return
         
         self.missing_dishes.append(entry)
         self._save_json_logs()
-        logger.info(f"Logged missing dish to JSON: {query} ({country})")
+        logger.info(f"Logged missing dish to JSON: {dish_name} ({country})")
     
     def get_missing_dishes(self) -> List[Dict]:
         """Read all missing dishes from CSV"""

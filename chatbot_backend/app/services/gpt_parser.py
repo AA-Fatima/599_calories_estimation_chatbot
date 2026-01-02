@@ -2,6 +2,7 @@ from openai import OpenAI
 from typing import Dict, List, Optional
 import json
 import logging
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +11,7 @@ class GPTParser:
     
     def __init__(self, api_key: str):
         self.client = OpenAI(api_key=api_key)
+        self.model = settings.OPENAI_MODEL
     
     async def parse_query(self, user_message: str, country: str = "") -> Dict:
         """
@@ -66,7 +68,7 @@ Return format:
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}

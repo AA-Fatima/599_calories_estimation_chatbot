@@ -4,6 +4,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Fuzzy matching thresholds
+DISH_MATCH_THRESHOLD = 80  # Dishes require 80% match
+INGREDIENT_MATCH_THRESHOLD = 85  # Ingredients require 85% match for higher accuracy
+
 class DatasetSearch:
     """Search dishes and USDA ingredients by name"""
     
@@ -33,7 +37,7 @@ class DatasetSearch:
             limit=1
         )
         
-        if matches and matches[0][1] >= 80:
+        if matches and matches[0][1] >= DISH_MATCH_THRESHOLD:
             match_name = matches[0][0]
             logger.info(f"✅ Fuzzy dish match: {dish_name} → {match_name} ({matches[0][1]})")
             return self.dish_names[match_name]
@@ -58,7 +62,7 @@ class DatasetSearch:
             limit=1
         )
         
-        if matches and matches[0][1] >= 85:
+        if matches and matches[0][1] >= INGREDIENT_MATCH_THRESHOLD:
             match_name = matches[0][0]
             logger.info(f"✅ Found ingredient: {ingredient_name} → {match_name}")
             return self.usda_names[match_name]

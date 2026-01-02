@@ -68,8 +68,9 @@ async def chat_message(request: ChatRequest):
         # Log if not found
         if not result['found'] and missing_logger:
             missing_logger.log(
-                result['food_item'],
-                request.country,
+                dish_name=result['food_item'],
+                country=request.country,
+                user_query=request.message,
                 gpt_result=gpt_result
             )
         

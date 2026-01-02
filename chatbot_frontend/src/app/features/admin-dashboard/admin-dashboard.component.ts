@@ -69,6 +69,8 @@ export class AdminDashboardComponent implements OnInit {
 
   saveDish() {
     if (!this.currentDish.dish_name || !this.currentDish.country) {
+      // Could be improved with proper form validation and toast notifications
+      console.warn('Validation failed: dish_name and country are required');
       alert('Please fill in required fields');
       return;
     }

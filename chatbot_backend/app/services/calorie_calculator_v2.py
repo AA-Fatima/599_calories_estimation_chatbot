@@ -3,6 +3,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Default ingredient weight when adding items
+DEFAULT_ADDED_INGREDIENT_WEIGHT_G = 30
+
 class CalorieCalculatorV2:
     """Calculate calories and macros from ingredients"""
     
@@ -137,18 +140,18 @@ class CalorieCalculatorV2:
             usda_food = self.search.find_ingredient(add_item)
             if usda_food:
                 nutrients = usda_food.get('foodNutrients', [])
-                # Add with default weight (30g)
+                # Add with default weight
                 calories_per_100 = self._get_nutrient(nutrients, 'Energy', 'KCAL')
                 protein_per_100 = self._get_nutrient(nutrients, 'Protein')
                 carbs_per_100 = self._get_nutrient(nutrients, 'Carbohydrate, by difference')
                 fats_per_100 = self._get_nutrient(nutrients, 'Total lipid (fat)')
                 
-                scale = 0.3  # 30g
+                scale = DEFAULT_ADDED_INGREDIENT_WEIGHT_G / 100.0
                 
                 filtered.append({
                     "usda_fdc_id": usda_food.get('fdcId'),
                     "name": usda_food.get('description'),
-                    "weight_g": 30,
+                    "weight_g": DEFAULT_ADDED_INGREDIENT_WEIGHT_G,
                     "calories": round(calories_per_100 * scale, 1),
                     "protein_g": round(protein_per_100 * scale, 1),
                     "carbs_g": round(carbs_per_100 * scale, 1),
@@ -181,7 +184,13 @@ class CalorieCalculatorV2:
             nutrient_info = nutrient.get('nutrient', nutrient)
             nutrient_name = nutrient_info.get('nutrientName', nutrient_info.get('name', ''))
             
-            if name.lower() in nutrient_name.lower():
+            # Use more specific matching to avoid false matches
+            # e.g., don't match "fat" when looking for "Total lipid (fat)"
+            name_lower = name.lower()
+            nutrient_name_lower = nutrient_name.lower()
+            
+            # Exact match or starts with the nutrient name
+            if name_lower == nutrient_name_lower or nutrient_name_lower.startswith(name_lower):
                 unit_name = nutrient_info.get('unitName', '')
                 if unit.upper() in unit_name.upper() or not unit_name:
                     value = nutrient.get('amount', nutrient.get('value', 0))

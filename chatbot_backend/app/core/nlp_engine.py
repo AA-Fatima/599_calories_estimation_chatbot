@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Module-level constants for noise filtering
 NOISE_WORDS = {
     # English noise
-    'kam', 'ade', 'adeh', 'shu', 'eh', 'fi', 'b', 'in', 'of', 'the', 'a', 'an',
+    'ade', 'adeh', 'shu', 'eh', 'fi', 'b', 'in', 'of', 'the', 'a', 'an',
     'calories', 'calorie', 'kcal', 'cal', 'how', 'many', 'much', 'what',
     'tell', 'me', 'about', 'is', 'are', 'have', 'has', 'there', 'want', 'know',
     'hello', 'hi', 'hey', 'please', 'thanks', 'thank', 'you',
@@ -21,7 +21,7 @@ NOISE_WORDS = {
     # Arabic noise  
     'كم', 'أدي', 'شو', 'ايه', 'سعرة', 'سعرات', 'في', 'ب', 'بدي', 'اعرف',
     # Franco-Arabic noise
-    'badi', 'ade', 'kam', 'fi', 'bi', 'ma3'
+    'kam', 'badi', 'bi', 'ma3'
 }
 
 FOOD_KEYWORDS = {
@@ -63,6 +63,7 @@ class NLPEngine:
         self.ner_tokenizer = None
         self.initialized = False
         self.food_aliases = {}
+        self.alias_to_canonical = {}  # Preprocessed mapping for fast lookup
         
         self._load_food_aliases()
         self._init_translator()
@@ -80,7 +81,13 @@ class NLPEngine:
             if os.path.exists(aliases_path):
                 with open(aliases_path, 'r', encoding='utf-8') as f:
                     self.food_aliases = json.load(f)
-                logger.info(f"✅ Loaded {len(self.food_aliases)} food alias groups")
+                
+                # Build preprocessed alias-to-canonical mapping for faster lookups
+                for canonical, aliases in self.food_aliases.items():
+                    for alias in aliases:
+                        self.alias_to_canonical[alias.lower()] = canonical
+                
+                logger.info(f"✅ Loaded {len(self.food_aliases)} food alias groups ({len(self.alias_to_canonical)} total aliases)")
             else:
                 logger.warning(f"Food aliases file not found at {aliases_path}")
                 self.food_aliases = {}
@@ -246,15 +253,16 @@ class NLPEngine:
         
         result = food_name.lower().strip()
         
-        # First check if it's in our aliases (exact match takes priority)
+        # First check if it's in our aliases (exact word match takes priority)
         if self.food_aliases:
+            result_words = result.split()
             for canonical, aliases in self.food_aliases.items():
                 # Check each word in the food name
-                for word in result.split():
+                for i, word in enumerate(result_words):
                     if word in [a.lower() for a in aliases]:
-                        # Replace this word with canonical
-                        result = result.replace(word, canonical)
-                        return result.strip()
+                        # Replace this specific word with canonical
+                        result_words[i] = canonical
+                        return ' '.join(result_words).strip()
         
         # Franco number conversion
         franco_map = {
@@ -284,18 +292,24 @@ class NLPEngine:
             'faheta': 'fajita'
         }
         
-        # Check for matches in the result
+        # Check for exact word matches in the result
         words = result.split()
         normalized_words = []
         for word in words:
-            found = False
-            for franco, english in FRANCO_FOOD_MAP.items():
-                if franco in word or word in franco:
-                    normalized_words.append(english)
-                    found = True
-                    break
-            if not found:
-                normalized_words.append(word)
+            # Check for exact match first
+            if word in FRANCO_FOOD_MAP:
+                normalized_words.append(FRANCO_FOOD_MAP[word])
+            else:
+                # Check if word contains any franco food as substring (only if word is similar length)
+                found = False
+                for franco, english in FRANCO_FOOD_MAP.items():
+                    # Only match if the word contains franco and they're similar in length
+                    if franco in word and abs(len(word) - len(franco)) <= 2:
+                        normalized_words.append(english)
+                        found = True
+                        break
+                if not found:
+                    normalized_words.append(word)
         
         return ' '.join(normalized_words).strip()
     
@@ -456,11 +470,9 @@ class NLPEngine:
                         if word.isdigit():
                             continue
                         
-                        # Must contain food keyword or be in aliases
+                        # Must contain food keyword or be in aliases (using preprocessed map for speed)
                         has_food_word = any(kw in word.lower() for kw in FOOD_KEYWORDS)
-                        is_alias = any(alias.lower() in word.lower() 
-                                     for aliases in self.food_aliases.values() 
-                                     for alias in aliases)
+                        is_alias = word.lower() in self.alias_to_canonical
                         
                         if has_food_word or is_alias or len(word) <= 15:
                             valid_entities.append(word)
@@ -601,7 +613,7 @@ class NLPEngine:
                 # Extract what comes after the keyword
                 parts = text_lower.split(keyword)
                 if len(parts) > 1:
-                    after = parts[1].strip().split()[0:3]  # Take next 1-3 words
+                    after = parts[1].strip().split()[0:3]  # Take 0-3 words after keyword
                     # Filter noise
                     item_words = [w for w in after if w not in NOISE_WORDS and len(w) >= 3]
                     if item_words:
@@ -614,7 +626,7 @@ class NLPEngine:
             if keyword in text_lower:
                 parts = text_lower.split(keyword)
                 if len(parts) > 1:
-                    after = parts[1].strip().split()[0:3]
+                    after = parts[1].strip().split()[0:3]  # Take 0-3 words after keyword
                     item_words = [w for w in after if w not in NOISE_WORDS and len(w) >= 3]
                     if item_words:
                         item = ' '.join(item_words)

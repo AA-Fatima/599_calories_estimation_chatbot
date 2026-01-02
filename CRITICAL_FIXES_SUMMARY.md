@@ -10,8 +10,10 @@ This document summarizes the implementation of critical fixes for production blo
 
 **Example**: 
 - Input: `"teffe7a kbire"` (تفاحة كبيرة = big apple)
-- Before: `"teffeh kbire"` → classified as DISH → finds "Tempeh" ❌
+- Before: `"teffeha kbire"` → classified as DISH → incorrect match ❌
 - After: `"apple"` → classified as INGREDIENT → finds "Apple, raw" ✅
+
+Note: The 7→h conversion happens in normalization (teffe7a→teffeha), but then Franco-to-English mapping converts it to "apple".
 
 **Solution**:
 - Created `_normalize_franco_in_food()` method that:

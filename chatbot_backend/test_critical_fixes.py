@@ -179,10 +179,13 @@ def test_food_aliases():
 def test_complex_queries():
     """Test complex real-world queries from problem statement"""
     print("\n" + "="*70)
-    print("TEST 5: Complex Real-World Queries")
+    print("TEST 5: Complex Real-World Queries (Exploratory)")
     print("="*70)
     
     nlp = NLPEngine()
+    
+    print("⚠️  Note: This is an exploratory test to demonstrate fixes on real examples.")
+    print("    It always passes but shows actual behavior for manual validation.\n")
     
     test_cases = [
         {

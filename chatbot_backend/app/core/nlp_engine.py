@@ -525,6 +525,22 @@ class NLPEngine:
         matches = process.extract(query, candidates, scorer=fuzz.token_set_ratio, limit=top_k)
         return [(m[0], m[1] / 100.0) for m in matches]
     
+    def _classify_by_word_count(self, food_name: str) -> str:
+        """
+        Fallback classification based on word count
+        
+        Args:
+            food_name: Food name to classify
+            
+        Returns:
+            'ingredient' or 'dish'
+        """
+        MAX_INGREDIENT_WORDS = 2
+        food_lower = food_name.lower().strip()
+        word_count = len(food_lower.split())
+        result = 'ingredient' if word_count <= MAX_INGREDIENT_WORDS else 'dish'
+        return result
+    
     def classify_food_type(self, food_name: str) -> str:
         """
         Classify if food is an ingredient or a prepared dish
@@ -557,8 +573,7 @@ class NLPEngine:
         
         # Use ML classifier
         if not self.food_type_classifier:
-            # Fallback: single word = ingredient, multiple = dish
-            result = 'ingredient' if len(food_lower.split()) <= 2 else 'dish'
+            result = self._classify_by_word_count(food_name)
             logger.info(f"Fallback classification: '{food_name}' → {result.upper()}")
             return result
         
@@ -588,9 +603,7 @@ class NLPEngine:
             
         except Exception as e:
             logger.warning(f"ML classification failed: {e}, using fallback")
-            # Fallback
-            result = 'ingredient' if len(food_lower.split()) <= 2 else 'dish'
-            return result
+            return self._classify_by_word_count(food_name)
     
     def is_arabic(self, text: str) -> bool:
         """Check if text contains Arabic"""

@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Tuple
 from rapidfuzz import fuzz, process
 import logging
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +111,6 @@ class FoodSearchService:
     
     def precompute_embeddings(self):
         """Pre-compute semantic embeddings for all dishes on startup"""
-        from app.config import settings
-        
         if not settings.USE_SEMANTIC_SEARCH:
             logger.info("⚠️ Semantic search disabled in config")
             return
@@ -196,7 +195,6 @@ class FoodSearchService:
         results = []
         
         # Semantic search in USDA
-        from app.config import settings
         if settings.USE_SEMANTIC_SEARCH and self.usda_embeddings is not None:
             semantic_results = self._semantic_search_usda(query)
             if semantic_results:
@@ -247,7 +245,6 @@ class FoodSearchService:
         logger.info("🔍 Searching in dishes...")
         
         # Try semantic search first if available
-        from app.config import settings
         if settings.USE_SEMANTIC_SEARCH and self.dish_embeddings is not None:
             semantic_results = self._semantic_search_dishes(query, country_lower)
             if semantic_results:
